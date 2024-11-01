@@ -1,4 +1,4 @@
-from schedule_maker import generate_random_standings, generate_division_matchups
+from schedule_maker import generate_random_standings, generate_division_matchups, generate_intra_conference_matchups
 
 def test_generate_random_standings():
     standings = generate_random_standings()
@@ -26,6 +26,34 @@ def test_generate_division_matchups():
                     print(f"{home.full_name} (Home) vs {away.full_name} (Away)")
             print("\n")  # Extra break after each division for clarity
 
+def test_generate_intra_conference_matchups():
+    standings = generate_random_standings()
+    intra_conference_matchups = generate_intra_conference_matchups(standings)
+    print("\nIntra-Conference Matchups (2 Home and 2 Away):")
+
+    for conference, divisions in standings.items():
+        print(f"\n=== {conference} Conference ===")
+
+        # We are using a set of seen pairs to avoid redundant display and check variation
+        seen_pairs = set()
+
+        # Display each matchup for division pairs
+        division_keys = list(divisions.keys())
+        for i in range(0, len(division_keys), 2):
+            div1, div2 = division_keys[i], division_keys[i + 1]
+            pair = (div1, div2)
+            if pair not in seen_pairs:
+                print(f"\n--- Matchup: {div1} Division vs {div2} Division ---")
+                seen_pairs.add(pair)
+                
+                # Print only relevant matchups for this division pairing
+                for home, away in intra_conference_matchups:
+                    if (home.division == div1 and away.division == div2) or \
+                       (home.division == div2 and away.division == div1):
+                        print(f"{home.full_name} (Home) vs {away.full_name} (Away)")
+                print("\n")  # Extra break for clarity
+
 if __name__ == "__main__":
     test_generate_random_standings()
     test_generate_division_matchups()
+    test_generate_intra_conference_matchups()
