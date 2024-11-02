@@ -37,31 +37,54 @@ def generate_intra_conference_matchups(standings, intra_conf_pairing):
             division1_teams = standings[conference][div1]
             division2_teams = standings[conference][div2]
             
-            # For each team in division1, randomly select 2 home and 2 away opponents
+            # For each team in division1, assign exactly 2 home and 2 away games
             for team1 in division1_teams:
-                away_opponents = random.sample(division2_teams, 2)
-                home_opponents = [team2 for team2 in division2_teams if team2 not in away_opponents]
+                # Get available opponents (all teams from the other division)
+                available_opponents = list(division2_teams)
                 
-                # Add home games
-                for team2 in home_opponents:
-                    matchups.append((team1, team2))  # Home game for team1
+                # Randomly select 2 opponents for home games
+                home_opponents = random.sample(available_opponents, 2)
+                # Get the remaining 2 opponents for away games
+                away_opponents = [team2 for team2 in available_opponents if team2 not in home_opponents]
                 
-                # Add away games
-                for team2 in away_opponents:
-                    matchups.append((team2, team1))  # Away game for team1
+                # Add home games (team1 at home)
+                for home_opp in home_opponents:
+                    matchups.append((team1, home_opp))
+                
+                # Add away games (team1 away)
+                for away_opp in away_opponents:
+                    matchups.append((away_opp, team1))
     
     return matchups
 
 def generate_inter_conference_matchups(standings, inter_conf_pairing):
-    """Generate matchups between specific paired AFC and NFC divisions."""
+    """
+    Generate matchups between specific paired AFC and NFC divisions.
+    Each team plays four games, two at home and two away.
+    """
     matchups = []
     afc_divisions = standings["AFC"]
     nfc_divisions = standings["NFC"]
 
     for afc_div, nfc_div in inter_conf_pairing["AFC"].items():
-        for team1 in afc_divisions[afc_div]:
-            for team2 in nfc_divisions[nfc_div]:
-                matchups.append((team1, team2))
+        afc_teams = afc_divisions[afc_div]
+        nfc_teams = list(nfc_divisions[nfc_div])
+        
+        # For each AFC team, assign exactly 2 home and 2 away games
+        for afc_team in afc_teams:
+            # Randomly select 2 opponents for home games
+            home_opponents = random.sample(nfc_teams, 2)
+            # Get the remaining 2 opponents for away games
+            away_opponents = [team for team in nfc_teams if team not in home_opponents]
+            
+            # Add home games (AFC team at home)
+            for home_opp in home_opponents:
+                matchups.append((afc_team, home_opp))
+            
+            # Add away games (AFC team away)
+            for away_opp in away_opponents:
+                matchups.append((away_opp, afc_team))
+    
     return matchups
 
 def get_matchups(standings):
@@ -95,7 +118,7 @@ def get_matchups(standings):
     return intra_conf_pairing, inter_conf_pairing
 
 def get_team_schedule(standings, division_matchups, intra_conf_matchups, inter_conf_matchups, intra_conf_pairing, inter_conf_pairing):
-    """Print the team's schedule with home/away designations."""
+    """Print the team's schedule with home/away designations for all games."""
     team_shortform = input("Enter the team's short form (e.g., JAX for Jacksonville Jaguars): ").upper()
     
     team = next((t for t in teams if t.shortform == team_shortform), None)
@@ -147,20 +170,31 @@ def get_team_schedule(standings, division_matchups, intra_conf_matchups, inter_c
                 intra_conf_opponent_games[opponent]["away"] += 1
 
     for opponent, games in intra_conf_opponent_games.items():
-        location = "Home" if games["home"] == 1 else "Away"
+        location = "Home" if games["home"] > 0 else "Away"  # Changed this condition
         print(f"  - {opponent.full_name} ({location})")
 
-    # Inter-Conference Games (unchanged for now)
+    # Inter-Conference Games
     inter_conf_conference = "NFC" if team_conference == "AFC" else "AFC"
     inter_conf_division = inter_conf_pairing[team_conference][team_division]
     print(f"\nInter-Conference Opponents (4 games against the {inter_conf_conference} {inter_conf_division}):")
-    printed_opponents = set()
+    inter_conf_opponent_games = {}
+    
     for matchup in inter_conf_matchups:
         if team in matchup:
             opponent = matchup[1] if matchup[0] == team else matchup[0]
-            if opponent not in printed_opponents:
-                print(f"  - {opponent.full_name}")
-                printed_opponents.add(opponent)
+            is_home = matchup[0] == team
+            
+            if opponent not in inter_conf_opponent_games:
+                inter_conf_opponent_games[opponent] = {"home": 0, "away": 0}
+            
+            if is_home:
+                inter_conf_opponent_games[opponent]["home"] += 1
+            else:
+                inter_conf_opponent_games[opponent]["away"] += 1
+
+    for opponent, games in inter_conf_opponent_games.items():
+        location = "Home" if games["home"] > 0 else "Away"  # Changed this condition
+        print(f"  - {opponent.full_name} ({location})")
 
 # Generate the data and matchups
 standings = generate_random_standings()
