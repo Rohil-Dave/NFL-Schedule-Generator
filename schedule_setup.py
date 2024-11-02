@@ -70,7 +70,7 @@ def print_standings(standings):
         
         print("=" * 83)  # Bottom separator line for conference
 
-def generate_division_matchups(matchup_type):
+def generate_pairings_matchups(matchup_type):
     """
     Generate random division matchups for either intra or inter-conference play.
     
@@ -116,7 +116,7 @@ def generate_division_matchups(matchup_type):
     
     return matchups
 
-def print_matchups(matchups, matchup_type):
+def print_pairings_matchups(matchups, matchup_type):
     """
     Print division matchups in a consistent format.
     
@@ -133,19 +133,110 @@ def print_matchups(matchups, matchup_type):
     for conf1, div1, conf2, div2 in sorted_matchups:
         print(f"{conf1} {div1} vs {conf2} {div2}")
 
+def find_other_divisions(conference, paired_division, matchups):
+    """
+    Find the two divisions in a conference that aren't paired with the given division.
+    
+    Args:
+        conference (str): Conference to search in ('AFC' or 'NFC')
+        paired_division (str): Division that's already paired (e.g., 'North')
+        matchups (list): List of (conf1, div1, conf2, div2) tuples of intra-conference matchups
+    
+    Returns:
+        list: Two division names that aren't paired with the input division
+    """
+    all_divisions = ["North", "South", "East", "West"]
+    # Find the other division that's paired with our division
+    for conf1, div1, conf2, div2 in matchups:
+        if conf1 == conference and div1 == paired_division:
+            other_paired = div2
+            break
+        if conf1 == conference and div2 == paired_division:
+            other_paired = div1
+            break
+    
+    # Return divisions that aren't our division or its pair
+    return [div for div in all_divisions if div != paired_division and div != other_paired]
+
+def generate_rankings_matchups(standings, intra_matchups):
+    """
+    Generate rankings-based matchups for each division.
+    
+    Args:
+        standings (dict): Current standings by conference and division
+        intra_matchups (list): List of intra-conference division pairings
+    
+    Returns:
+        dict: Dictionary mapping each division to its two rankings-based opponent divisions
+    """
+    rankings_matchups = {}
+    
+    # Process each conference separately
+    for conference in ["AFC", "NFC"]:
+        # Look at each division in the conference
+        for division in ["North", "South", "East", "West"]:
+            # Find the two divisions this division will play against
+            opponent_divisions = find_other_divisions(conference, division, intra_matchups)
+            # Store the matchup information
+            rankings_matchups[f"{conference} {division}"] = opponent_divisions
+    
+    return rankings_matchups
+
+def print_rankings_matchups(rankings_matchups):
+    """
+    Print the rankings-based matchups in a formatted way.
+    
+    Args:
+        rankings_matchups (dict): Dictionary of division matchups
+    """
+    print("\nIntra-Rankings-Based Matchups:")
+    for division, opponents in sorted(rankings_matchups.items()):
+        conference = division.split()[0]
+        print(f"{division} will play same seeds in {conference} {opponents[0]} and {conference} {opponents[1]}")
+
+def get_ranking_based_opponents(team_conf, team_div, team_rank, standings, intra_matchups):
+    """
+    Get the specific opponents for a team based on rankings.
+    
+    Args:
+        team_conf (str): Team's conference
+        team_div (str): Team's division
+        team_rank (int): Team's rank in their division (1-4)
+        standings (dict): Current standings
+        intra_matchups (list): Intra-conference matchups
+    
+    Returns:
+        list: Names of the two opponents based on rankings
+    """
+    # Find the two divisions we'll play against
+    opponent_divisions = find_other_divisions(team_conf, team_div, intra_matchups)
+    opponents = []
+    
+    # For each opponent division, find the team at our rank
+    for div in opponent_divisions:
+        # Get list of teams in that division sorted by standing
+        div_teams = standings[team_conf][div]
+        # Find team at our rank (subtract 1 because ranks are 1-based but lists are 0-based)
+        opponent = div_teams[team_rank - 1]
+        opponents.append(opponent['name'])
+    
+    return opponents
+
 def main():
     """
-    Generate and display random NFL standings and division matchups.
+    Generate and display random NFL standings and all types of matchups.
     """
     # Generate standings and matchups
     standings = generate_random_standings()
-    intra_matchups = generate_division_matchups('intra')
-    inter_matchups = generate_division_matchups('inter')
+    intra_matchups = generate_pairings_matchups('intra')
+    inter_matchups = generate_pairings_matchups('inter')
+    rankings_matchups = generate_rankings_matchups(standings, intra_matchups)
     
     # Display results
     print_standings(standings)
-    print_matchups(intra_matchups, 'intra')
-    print_matchups(inter_matchups, 'inter')
+    print_pairings_matchups(intra_matchups, 'intra')
+    print_pairings_matchups(inter_matchups, 'inter')
+    print_rankings_matchups(rankings_matchups)
 
 if __name__ == "__main__":
     main()
