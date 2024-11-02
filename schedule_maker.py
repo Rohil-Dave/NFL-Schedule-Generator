@@ -28,16 +28,28 @@ def generate_division_matchups(standings):
 def generate_intra_conference_matchups(standings, intra_conf_pairing):
     """
     Generate matchups within the same conference for specific division pairings.
-    Each team plays four games against teams from the other division in the same conference. Two games at home and two away.
+    Each team plays four games against teams from the other division in the same conference.
+    Two games at home and two away.
     """
     matchups = []
     for conference, division_pairings in intra_conf_pairing.items():
         for div1, div2 in division_pairings.items():
             division1_teams = standings[conference][div1]
             division2_teams = standings[conference][div2]
+            
+            # For each team in division1, randomly select 2 home and 2 away opponents
             for team1 in division1_teams:
-                for team2 in division2_teams:
-                    matchups.append((team1, team2))
+                away_opponents = random.sample(division2_teams, 2)
+                home_opponents = [team2 for team2 in division2_teams if team2 not in away_opponents]
+                
+                # Add home games
+                for team2 in home_opponents:
+                    matchups.append((team1, team2))  # Home game for team1
+                
+                # Add away games
+                for team2 in away_opponents:
+                    matchups.append((team2, team1))  # Away game for team1
+    
     return matchups
 
 def generate_inter_conference_matchups(standings, inter_conf_pairing):
@@ -96,38 +108,49 @@ def get_team_schedule(standings, division_matchups, intra_conf_matchups, inter_c
 
     print(f"\nSchedule for {team.full_name} ({team.shortform}, {team_conference} {team_division}):")
 
+    # Division Games
     print(f"\nDivision Opponents (6 games against the {team_conference} {team_division}):")
-    opponent_games = {}
+    division_opponent_games = {}
     
-    # Count home and away games for each opponent
     for matchup in division_matchups:
         if team in matchup:
             opponent = matchup[1] if matchup[0] == team else matchup[0]
             is_home = matchup[0] == team
             
-            if opponent not in opponent_games:
-                opponent_games[opponent] = {"home": 0, "away": 0}
+            if opponent not in division_opponent_games:
+                division_opponent_games[opponent] = {"home": 0, "away": 0}
             
             if is_home:
-                opponent_games[opponent]["home"] += 1
+                division_opponent_games[opponent]["home"] += 1
             else:
-                opponent_games[opponent]["away"] += 1
+                division_opponent_games[opponent]["away"] += 1
 
-    # Print division opponents with home/away counts
-    for opponent, games in opponent_games.items():
+    for opponent, games in division_opponent_games.items():
         print(f"  - {opponent.full_name} ({games['home']} Home, {games['away']} Away)")
 
-    # Rest of the function remains the same...
+    # Intra-Conference Games
     intra_conf_division = intra_conf_pairing[team_conference][team_division]
     print(f"\nIntra-Conference Opponents (4 games against the {team_conference} {intra_conf_division}):")
-    printed_opponents = set()
+    intra_conf_opponent_games = {}
+    
     for matchup in intra_conf_matchups:
         if team in matchup:
             opponent = matchup[1] if matchup[0] == team else matchup[0]
-            if opponent not in printed_opponents:
-                print(f"  - {opponent.full_name}")
-                printed_opponents.add(opponent)
+            is_home = matchup[0] == team
+            
+            if opponent not in intra_conf_opponent_games:
+                intra_conf_opponent_games[opponent] = {"home": 0, "away": 0}
+            
+            if is_home:
+                intra_conf_opponent_games[opponent]["home"] += 1
+            else:
+                intra_conf_opponent_games[opponent]["away"] += 1
 
+    for opponent, games in intra_conf_opponent_games.items():
+        location = "Home" if games["home"] == 1 else "Away"
+        print(f"  - {opponent.full_name} ({location})")
+
+    # Inter-Conference Games (unchanged for now)
     inter_conf_conference = "NFC" if team_conference == "AFC" else "AFC"
     inter_conf_division = inter_conf_pairing[team_conference][team_division]
     print(f"\nInter-Conference Opponents (4 games against the {inter_conf_conference} {inter_conf_division}):")
