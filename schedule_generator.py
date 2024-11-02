@@ -1,5 +1,7 @@
 # schedule_generator.py
-from nfl_teams import NFL_TEAMS  # Import our NFL teams data structure
+
+from nfl_teams import NFL_TEAMS
+from schedule_setup import generate_division_matchups
 
 def get_division_games(team_code):
     """Find team's division and return their division opponents."""
@@ -7,53 +9,141 @@ def get_division_games(team_code):
     for conference in NFL_TEAMS:
         # Loop through each division (North, South, East, West) in the conference
         for division in NFL_TEAMS[conference]:
-            # Get list of teams in current division
+            # Get the list of teams in current division
             teams = NFL_TEAMS[conference][division]
             
-            # Check if our team is in this division
-            # any() returns True if our team code matches any team's abbreviation in this division
+            # Check if our team is in this division by matching abbreviation
             if any(team['abbreviation'] == team_code for team in teams):
-                # We found our team's division! Now get the team's full information
-                # next() gets the first (and only) team matching our team code
+                # Get full team info for our team
                 team = next(team for team in teams if team['abbreviation'] == team_code)
-                
-                # Create list of opponent names
-                # List comprehension: get name of each team that isn't our team
+                # Create list of division opponents (excluding our team)
                 opponents = [t['name'] for t in teams if t != team]
-                
-                # Return all the info we need:
-                # - Full team name (e.g., "Jacksonville Jaguars")
-                # - Conference (e.g., "AFC")
-                # - Division (e.g., "South")
-                # - List of opponent names in their division
+                # Return all relevant info we found
                 return team['name'], conference, division, opponents
-    
+                
     # If we didn't find the team, return None for all values
     return None, None, None, None
 
-if __name__ == "__main__":
-    # Keep running until user quits
-    while True:
-        # Prompt for team code and convert to uppercase
-        team_code = input("\nEnter team abbreviation (or 'quit' to exit): ").upper()
+def get_teams_in_division(conference, division):
+    """Get list of all team names in a specific division."""
+    # Return a list of just the team names from the specified division
+    return [team['name'] for team in NFL_TEAMS[conference][division]]
+
+def find_division_matchup(team_conf, team_div, matchups):
+    """
+    Find the division that matches with the given team's division.
+    
+    Args:
+        team_conf: Conference of the team we're looking up (e.g., 'AFC')
+        team_div: Division of the team we're looking up (e.g., 'South')
+        matchups: List of (conf1, div1, conf2, div2) tuples from schedule_setup
         
-        # Check if user wants to quit
+    Returns:
+        Tuple of (conference, division) for the matching division
+    """
+    # Look through each matchup tuple
+    for conf1, div1, conf2, div2 in matchups:
+        # If our team's division is the first one in the pair...
+        if conf1 == team_conf and div1 == team_div:
+            # Return the second division in the pair
+            return (conf2, div2)
+        # If our team's division is the second one in the pair...
+        if conf2 == team_conf and div2 == team_div:
+            # Return the first division in the pair
+            return (conf1, div1)
+    # If no match found (shouldn't happen with valid data)
+    return None, None
+
+def print_all_matchups(intra_matchups, inter_matchups):
+    """
+    Print all division matchups for testing/verification purposes.
+    Shows both intra-conference and inter-conference matchups.
+    """
+    print("\nTesting - All Division Matchups:")
+    
+    # Print all intra-conference matchups (divisions within same conference)
+    print("\nIntra-Conference Matchups:")
+    for conf1, div1, conf2, div2 in intra_matchups:
+        print(f"{conf1} {div1} vs {conf2} {div2}")
+    
+    # Print all inter-conference matchups (AFC vs NFC divisions)    
+    print("\nInter-Conference Matchups:")
+    for conf1, div1, conf2, div2 in inter_matchups:
+        print(f"{conf1} {div1} vs {conf2} {div2}")
+    print("\n" + "="*50 + "\n")
+
+def print_team_schedule(team_name, team_code, conf, div, opponents, intra_conf, intra_div, inter_conf, inter_div):
+    """
+    Print the complete schedule for a team in a formatted way.
+    
+    Args:
+        team_name: Full name of the team
+        team_code: Team abbreviation
+        conf: Team's conference
+        div: Team's division
+        opponents: List of division opponents
+        intra_conf, intra_div: Conference and division for intra-conference matchups
+        inter_conf, inter_div: Conference and division for inter-conference matchups
+    """
+    # Print team header
+    print(f"\nSchedule for {team_name} ({team_code}, an {conf} {div} Team):")
+    
+    # Print division games
+    print(f"\nDivision Matchups ({conf} {div}):")
+    for opponent in opponents:
+        print(opponent)
+    
+    # Print intra-conference games
+    print(f"\nIntra-Conference Matchups ({conf} {intra_div}):")
+    intra_teams = get_teams_in_division(intra_conf, intra_div)
+    for team in intra_teams:
+        print(team)
+    
+    # Print inter-conference games
+    print(f"\nInter-Conference Matchups ({inter_conf} {inter_div}):")
+    inter_teams = get_teams_in_division(inter_conf, inter_div)
+    for team in inter_teams:
+        print(team)
+
+def main():
+    """
+    Main function to run the NFL schedule generator.
+    Handles the main program flow and user interaction.
+    """
+    # Generate both types of matchups at program start
+    # These remain constant for all team lookups in this session
+    intra_matchups = generate_division_matchups('intra')  # Divisions within same conference
+    inter_matchups = generate_division_matchups('inter')  # AFC vs NFC divisions
+    
+    # Display all matchups first for verification
+    print_all_matchups(intra_matchups, inter_matchups)
+    
+    # Start main program loop
+    while True:
+        # Get team code from user (convert to uppercase for consistency)
+        team_code = input("Enter team abbreviation (or 'quit' to exit): ").upper()
+        
+        # Check for exit condition
         if team_code == 'QUIT':
             break
         
         # Get team information and division opponents
-        # This unpacks the four values returned by get_division_games()
         team_name, conf, div, opponents = get_division_games(team_code)
         
-        # If team wasn't found (team_name is None)
+        # Handle case where team code wasn't found
         if not team_name:
             print(f"Team {team_code} not found. Please try again.")
-            # Skip rest of loop and go back to input prompt
             continue
         
-        # Print team information and division opponents
-        print(f"\nSchedule for {team_name} ({team_code}, an {conf} {div} Team):")
-        print("Division Matchups:")
-        # Print each opponent on a new line
-        for opponent in opponents:
-            print(opponent)
+        # Find the divisions this team plays against based on the generated matchups
+        intra_conf, intra_div = find_division_matchup(conf, div, intra_matchups)
+        inter_conf, inter_div = find_division_matchup(conf, div, inter_matchups)
+        
+        # Print the complete schedule
+        print_team_schedule(
+            team_name, team_code, conf, div, opponents,
+            intra_conf, intra_div, inter_conf, inter_div
+        )
+
+if __name__ == "__main__":
+    main()
