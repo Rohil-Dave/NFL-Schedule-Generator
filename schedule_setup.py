@@ -70,18 +70,82 @@ def print_standings(standings):
         
         print("=" * 83)  # Bottom separator line for conference
 
+def generate_division_matchups(matchup_type):
+    """
+    Generate random division matchups for either intra or inter-conference play.
+    
+    Args:
+        matchup_type (str): Either 'intra' or 'inter' to specify matchup type
+    
+    Returns:
+        list: List of tuples containing (conf1, div1, conf2, div2) matchups
+    """
+    divisions = ["North", "South", "East", "West"]
+    matchups = []
+    
+    if matchup_type == 'intra':
+        # Handle intra-conference matchups (AFC vs AFC, NFC vs NFC)
+        for conf in ["AFC", "NFC"]:
+            # Create a copy of divisions and shuffle them
+            div_list = divisions.copy()
+            random.shuffle(div_list)
+            
+            # Pair divisions within the same conference
+            matchups.extend([
+                (conf, div_list[0], conf, div_list[1]),
+                (conf, div_list[2], conf, div_list[3])
+            ])
+    
+    else:  # inter-conference
+        # Handle inter-conference matchups (AFC vs NFC)
+        afc_divs = divisions.copy()
+        nfc_divs = divisions.copy()
+        random.shuffle(afc_divs)
+        random.shuffle(nfc_divs)
+        
+        # Create pairs where each AFC division plays an NFC division
+        for afc_div, nfc_div in zip(afc_divs, nfc_divs):
+            matchups.append(("AFC", afc_div, "NFC", nfc_div))
+    
+    # Validate matchups
+    for conf1, div1, conf2, div2 in matchups:
+        if matchup_type == 'intra':
+            assert conf1 == conf2, "Intra-conference matchups must be within the same conference"
+        else:
+            assert conf1 != conf2, "Inter-conference matchups must be between different conferences"
+    
+    return matchups
+
+def print_matchups(matchups, matchup_type):
+    """
+    Print division matchups in a consistent format.
+    
+    Args:
+        matchups (list): List of (conf1, div1, conf2, div2) tuples
+        matchup_type (str): Either 'intra' or 'inter' to specify header
+    """
+    header = "Intra-Conference" if matchup_type == 'intra' else "Inter-Conference"
+    print(f"\n{header} Matchups:")
+    print("=" * 30)
+    
+    # Sort matchups by conference to group them together
+    sorted_matchups = sorted(matchups, key=lambda x: (x[0], x[1]))
+    for conf1, div1, conf2, div2 in sorted_matchups:
+        print(f"{conf1} {div1} vs {conf2} {div2}")
+
 def main():
     """
-    Main function to execute the standings generation.
-    This is the entry point when the script is run directly.
+    Generate and display random NFL standings and division matchups.
     """
-    # Generate random standings for all divisions
+    # Generate standings and matchups
     standings = generate_random_standings()
+    intra_matchups = generate_division_matchups('intra')
+    inter_matchups = generate_division_matchups('inter')
     
-    # Display the standings in the console
+    # Display results
     print_standings(standings)
+    print_matchups(intra_matchups, 'intra')
+    print_matchups(inter_matchups, 'inter')
 
-# This is a common Python idiom that checks if this file is being run directly
-# (as opposed to being imported as a module)
 if __name__ == "__main__":
     main()
