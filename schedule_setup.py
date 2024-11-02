@@ -37,27 +37,38 @@ def generate_random_standings():
 def print_standings(standings):
     """
     Print the standings in a clean, formatted way.
-    Shows just the abbreviation for each team, numbered 1-4 for each division.
+    Displays each conference in a block with divisions aligned horizontally.
     
     Args:
         standings (dict): The dictionary containing the randomized standings
     """
-    # Loop through each conference (AFC and NFC)
-    for conference in standings:
-        # Print conference header
+    divisions = ["North", "South", "East", "West"]
+    
+    # Function to print a single division's standings
+    def print_division(conf, div):
+        lines = []
+        lines.append(f"{div:^20}")  # Center division name in 20 spaces
+        lines.append("-" * 20)      # Dividing line
+        for i, team in enumerate(standings[conf][div], 1):
+            lines.append(f"{i}. {team['abbreviation']:^17}")  # Center team in 17 spaces
+        return lines
+    
+    # Print each conference block
+    for conference in ["AFC", "NFC"]:
         print(f"\n{conference}")
+        print("=" * 83)  # Separator line for conference
         
-        # Loop through each division in the conference
-        for division in standings[conference]:
-            # Print division header
-            print(f"\n{division}:")
-            
-            # Loop through teams in current division
-            # enumerate with start=1 gives us 1-based indexing for standings
-            for i, team in enumerate(standings[conference][division], 1):
-                # Print team's position and abbreviation
-                # e.g., "1. LAR"
-                print(f"{i}. {team['abbreviation']}")
+        # Get all lines for each division
+        division_lines = [print_division(conference, div) for div in divisions]
+        
+        # Print divisions side by side
+        for i in range(len(division_lines[0])):  # All divisions have same number of lines
+            line = ""
+            for div_lines in division_lines:
+                line += div_lines[i] + " | "
+            print(line.rstrip(" |"))
+        
+        print("=" * 83)  # Bottom separator line for conference
 
 def main():
     """
