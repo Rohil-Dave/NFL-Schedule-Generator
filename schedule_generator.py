@@ -105,6 +105,9 @@ def print_team_schedule(team_name, team_code, conf, div, opponents, intra_conf, 
     for team in inter_teams:
         print(team)
 
+    # Print separator line at end of schedule
+    print("=" * 30)
+
 def main():
     """
     Main function to run the NFL schedule generator.
