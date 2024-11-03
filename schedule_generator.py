@@ -4,7 +4,8 @@ from schedule_setup import (
     print_standings,
     generate_pairings_matchups,
     print_pairings_matchups,
-    generate_rankings_matchups
+    generate_rankings_matchups,
+    print_rankings_matchups
 )
 
 def get_division_games(team_code):
@@ -267,6 +268,9 @@ def main():
     print_standings(standings)
     print_pairings_matchups(intra_matchups, 'intra')
     print_pairings_matchups(inter_matchups, 'inter')
+
+    # Display inter-rankings-based matchups for verification
+    print_rankings_matchups(inter_rankings, 'inter')
     print("\n" + "="*50 + "\n")
     
     while True:
