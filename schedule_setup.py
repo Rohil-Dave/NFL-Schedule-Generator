@@ -231,7 +231,7 @@ def print_rankings_matchups(rankings_matchups, matchup_type):
     else:
         print("\nInter-Rankings-Based Matchups:")
         for conf1, div1, conf2, div2 in sorted(rankings_matchups):
-            print(f"{conf1} {div1} vs {conf2} {div2}")
+            print(f"{conf1} {div1} will play same seed in {conf2} {div2}")
 
 def get_ranking_based_opponents(team_conf, team_div, team_rank, standings, intra_matchups):
     """
