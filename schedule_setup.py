@@ -233,34 +233,6 @@ def print_rankings_matchups(rankings_matchups, matchup_type):
         for conf1, div1, conf2, div2 in sorted(rankings_matchups):
             print(f"{conf1} {div1} will play same seed in {conf2} {div2}")
 
-def get_ranking_based_opponents(team_conf, team_div, team_rank, standings, intra_matchups):
-    """
-    Get the specific opponents for a team based on rankings.
-    
-    Args:
-        team_conf (str): Team's conference
-        team_div (str): Team's division
-        team_rank (int): Team's rank in their division (1-4)
-        standings (dict): Current standings
-        intra_matchups (list): Intra-conference matchups
-    
-    Returns:
-        list: Names of the two opponents based on rankings
-    """
-    # Find the two divisions we'll play against
-    opponent_divisions = find_other_divisions(team_conf, team_div, intra_matchups)
-    opponents = []
-    
-    # For each opponent division, find the team at our rank
-    for div in opponent_divisions:
-        # Get list of teams in that division sorted by standing
-        div_teams = standings[team_conf][div]
-        # Find team at our rank (subtract 1 because ranks are 1-based but lists are 0-based)
-        opponent = div_teams[team_rank - 1]
-        opponents.append(opponent['name'])
-    
-    return opponents
-
 def main():
     """
     Generate and display random NFL standings and all types of matchups.
