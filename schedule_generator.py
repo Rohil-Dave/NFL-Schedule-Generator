@@ -4,7 +4,7 @@ from schedule_setup import (
     print_standings,
     generate_pairings_matchups,
     print_pairings_matchups,
-    get_ranking_based_opponents
+    generate_rankings_matchups
 )
 
 def get_division_games(team_code):
@@ -118,9 +118,86 @@ def find_division_matchup(team_conf, team_div, matchups):
     # If no match found (shouldn't happen with valid data)
     return None, None
 
+def get_intra_ranking_based_opponents(team_conf, team_div, team_rank, standings, intra_rankings):
+    """
+    Get the specific intra-conference opponents for a team based on rankings.
+    
+    Args:
+        team_conf (str): Team's conference ('AFC' or 'NFC')
+        team_div (str): Team's division ('North', 'South', 'East', 'West')
+        team_rank (int): Team's rank in their division (1-4)
+        standings (dict): Current standings dictionary
+        intra_rankings (dict): Dictionary of intra-conference rankings matchups
+    
+    Returns:
+        list: Names of the two same-conference opponents based on rankings
+    """
+    # Get the two divisions this team plays against for rankings
+    opponent_divisions = intra_rankings[f"{team_conf} {team_div}"]
+    opponents = []
+    
+    # For each opponent division, find the team at our rank
+    for div in opponent_divisions:
+        # Get list of teams in that division sorted by standing
+        div_teams = standings[team_conf][div]
+        # Find team at our rank (subtract 1 because ranks are 1-based but lists are 0-based)
+        opponent = div_teams[team_rank - 1]
+        opponents.append(opponent['name'])
+    
+    return opponents
+
+def get_inter_ranking_based_opponent(team_conf, team_div, team_rank, standings, inter_rankings):
+    """
+    Get the specific inter-conference opponent for a team based on rankings.
+    
+    Args:
+        team_conf (str): Team's conference ('AFC' or 'NFC')
+        team_div (str): Team's division ('North', 'South', 'East', 'West')
+        team_rank (int): Team's rank in their division (1-4)
+        standings (dict): Current standings dictionary
+        inter_rankings (list): List of (conf1, div1, conf2, div2) tuples for inter-conference rankings
+    
+    Returns:
+        str: Name of the opposite-conference opponent based on rankings
+    """
+    # Find the division this team is paired with for inter-conference rankings
+    opp_conf = "NFC" if team_conf == "AFC" else "AFC"
+    
+    # Search through the rankings matchups to find our pairing
+    for conf1, div1, conf2, div2 in inter_rankings:
+        if conf1 == team_conf and div1 == team_div:
+            opp_div = div2
+            break
+        if conf2 == team_conf and div2 == team_div:
+            opp_div = div1
+            break
+    
+    # Get the team at the same rank in the paired division
+    opponent = standings[opp_conf][opp_div][team_rank - 1]
+    return opponent['name']
+
+def find_inter_ranking_division(conf, div, inter_rankings):
+    """
+    Find the division paired with a given division for inter-conference rankings matchups.
+    
+    Args:
+        conf (str): Conference of the team ('AFC' or 'NFC')
+        div (str): Division of the team ('North', 'South', 'East', 'West')
+        inter_rankings (list): List of (conf1, div1, conf2, div2) tuples for inter-conference rankings
+    
+    Returns:
+        str: Division name from opposite conference for rankings matchup
+    """
+    for conf1, div1, conf2, div2 in inter_rankings:
+        if conf1 == conf and div1 == div:
+            return div2
+        if conf2 == conf and div2 == div:
+            return div1
+        
 def print_team_schedule(team_name, team_code, conf, div, opponents, 
                        intra_conf, intra_div, inter_conf, inter_div,
-                       rank, rankings_opponents):
+                       rank, intra_rank_opponents, intra_rank_divisions, 
+                       inter_rank_opponent, inter_rank_div):
     """
     Print the complete schedule for a team in a formatted way.
     
@@ -135,12 +212,14 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
         inter_conf (str): Conference for inter-conference matchups
         inter_div (str): Division for inter-conference matchups
         rank (int): Team's rank in their division
-        rankings_opponents (list): List of ranking-based opponents
+        intra_rank_opponents (list): List of same-conference ranking-based opponents
+        intra_rank_divisions (list): List of divisions for intra-conference ranking matchups
+        inter_rank_opponent (str): Opposite-conference ranking-based opponent
+        inter_rank_div (str): Division for inter-conference ranking matchup
     """
-
     # Get ordinal form of rank (1st, 2nd, 3rd, 4th)
     rank_ordinal = get_ordinal_suffix(rank)
-
+    
     # Print team header with rank
     print(f"\nSchedule for {team_name} ({team_code}, an {conf} {div} Team, ranked {rank_ordinal}):")
     
@@ -161,10 +240,14 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
     for team in inter_teams:
         print(team)
         
-    # Print rankings-based matchups
-    print(f"\nIntra-Rankings-Based Matchups ({rank_ordinal} {conf}):")
-    for opponent in rankings_opponents:
+    # Print intra-conference rankings-based matchups
+    print(f"\nIntra-Rankings-Based Matchups ({rank_ordinal} {conf} {intra_rank_divisions[0]} and {rank_ordinal} {conf} {intra_rank_divisions[1]}):")
+    for opponent in intra_rank_opponents:
         print(opponent)
+
+    # Print inter-conference rankings-based matchup
+    print(f"\nInter-Rankings-Based Matchup ({rank_ordinal} {inter_conf} {inter_rank_div}):")
+    print(inter_rank_opponent)
 
     print("=" * 30)
 
@@ -177,6 +260,8 @@ def main():
     standings = generate_random_standings()
     intra_matchups = generate_pairings_matchups('intra')
     inter_matchups = generate_pairings_matchups('inter')
+    intra_rankings = generate_rankings_matchups(intra_matchups, 'intra')
+    inter_rankings = generate_rankings_matchups(inter_matchups, 'inter')
     
     # Display standings and all division pairings first for verification
     print_standings(standings)
@@ -203,15 +288,25 @@ def main():
         
         # Get team's rank and rankings-based opponents
         rank = get_team_rank(team_name, standings)
-        rankings_opponents = get_ranking_based_opponents(
-            conf, div, rank, standings, intra_matchups
+        
+        # Get intra-conference rankings-based opponents and their divisions
+        intra_rank_divisions = intra_rankings[f"{conf} {div}"]
+        intra_rank_opponents = get_intra_ranking_based_opponents(
+            conf, div, rank, standings, intra_rankings
         )
         
-        # Print the complete schedule
+        # Get inter-conference rankings-based opponent and division
+        inter_rank_div = find_inter_ranking_division(conf, div, inter_rankings)
+        inter_rank_opponent = get_inter_ranking_based_opponent(
+            conf, div, rank, standings, inter_rankings
+        )
+        
+        # Print the complete schedule for the requested team
         print_team_schedule(
             team_name, team_code, conf, div, opponents,
             intra_conf, intra_div, inter_conf, inter_div,
-            rank, rankings_opponents
+            rank, intra_rank_opponents, intra_rank_divisions,
+            inter_rank_opponent, inter_rank_div
         )
 
 if __name__ == "__main__":
