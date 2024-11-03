@@ -158,41 +158,80 @@ def find_other_divisions(conference, paired_division, matchups):
     # Return divisions that aren't our division or its pair
     return [div for div in all_divisions if div != paired_division and div != other_paired]
 
-def generate_rankings_matchups(standings, intra_matchups):
+def generate_rankings_matchups(matchups, matchup_type):
     """
-    Generate rankings-based matchups for each division.
+    Generate rankings-based matchups for either intra or inter-conference play.
     
     Args:
-        standings (dict): Current standings by conference and division
-        intra_matchups (list): List of intra-conference division pairings
+        matchups (list): List of division pairings
+        matchup_type (str): Either 'intra' or 'inter' to specify matchup type
     
     Returns:
-        dict: Dictionary mapping each division to its two rankings-based opponent divisions
+        Union[dict, list]: For intra: Dictionary mapping divisions to opponent divisions
+                          For inter: List of (conf1, div1, conf2, div2) tuples
     """
-    rankings_matchups = {}
+    if matchup_type == 'intra':
+        rankings_matchups = {}
+        # Process each conference separately
+        for conference in ["AFC", "NFC"]:
+            # Look at each division in the conference
+            for division in ["North", "South", "East", "West"]:
+                # Find the two divisions this division will play against
+                opponent_divisions = find_other_divisions(conference, division, matchups)
+                # Store the matchup information
+                rankings_matchups[f"{conference} {division}"] = opponent_divisions
+        return rankings_matchups
     
-    # Process each conference separately
-    for conference in ["AFC", "NFC"]:
-        # Look at each division in the conference
-        for division in ["North", "South", "East", "West"]:
-            # Find the two divisions this division will play against
-            opponent_divisions = find_other_divisions(conference, division, intra_matchups)
-            # Store the matchup information
-            rankings_matchups[f"{conference} {division}"] = opponent_divisions
-    
-    return rankings_matchups
+    else:  # inter-conference rankings
+        # Get current pairings from matchups
+        current_pairs = {}
+        for conf1, div1, conf2, div2 in matchups:
+            if conf1 == "AFC":
+                current_pairs[f"AFC {div1}"] = f"NFC {div2}"
+            else:
+                current_pairs[f"NFC {div1}"] = f"AFC {div2}"
+        
+        # Initialize available divisions
+        afc_divs = ["North", "South", "East", "West"]
+        nfc_divs = ["North", "South", "East", "West"]
+        rankings_pairs = []
+        used_nfc = set()
+        
+        # Create rankings-based pairs
+        for afc_div in afc_divs:
+            # Get the NFC division this AFC division is already paired with
+            current_nfc = current_pairs[f"AFC {afc_div}"].split()[1]
+            
+            # Get available NFC divisions (not current pair and not already used)
+            available_nfc = [div for div in nfc_divs 
+                           if div != current_nfc and div not in used_nfc]
+            
+            # Randomly select one of the available NFC divisions
+            chosen_nfc = random.choice(available_nfc)
+            used_nfc.add(chosen_nfc)
+            
+            # Add the pairing
+            rankings_pairs.append(("AFC", afc_div, "NFC", chosen_nfc))
+            
+        return rankings_pairs
 
-def print_rankings_matchups(rankings_matchups):
+def print_rankings_matchups(rankings_matchups, matchup_type):
     """
     Print the rankings-based matchups in a formatted way.
     
     Args:
-        rankings_matchups (dict): Dictionary of division matchups
+        rankings_matchups: Either dict of division matchups (intra) or list of tuples (inter)
+        matchup_type (str): Either 'intra' or 'inter' to specify format
     """
-    print("\nIntra-Rankings-Based Matchups:")
-    for division, opponents in sorted(rankings_matchups.items()):
-        conference = division.split()[0]
-        print(f"{division} will play same seeds in {conference} {opponents[0]} and {conference} {opponents[1]}")
+    if matchup_type == 'intra':
+        print("\nIntra-Rankings-Based Matchups:")
+        for division, opponents in sorted(rankings_matchups.items()):
+            conference = division.split()[0]
+            print(f"{division} will play same seeds in {conference} {opponents[0]} and {conference} {opponents[1]}")
+    else:
+        print("\nInter-Rankings-Based Matchups:")
+        for conf1, div1, conf2, div2 in sorted(rankings_matchups):
+            print(f"{conf1} {div1} vs {conf2} {div2}")
 
 def get_ranking_based_opponents(team_conf, team_div, team_rank, standings, intra_matchups):
     """
@@ -230,13 +269,15 @@ def main():
     standings = generate_random_standings()
     intra_matchups = generate_pairings_matchups('intra')
     inter_matchups = generate_pairings_matchups('inter')
-    rankings_matchups = generate_rankings_matchups(standings, intra_matchups)
+    intra_rankings = generate_rankings_matchups(intra_matchups, 'intra')
+    inter_rankings = generate_rankings_matchups(inter_matchups, 'inter')
     
     # Display results
     print_standings(standings)
     print_pairings_matchups(intra_matchups, 'intra')
     print_pairings_matchups(inter_matchups, 'inter')
-    print_rankings_matchups(rankings_matchups)
+    print_rankings_matchups(intra_rankings, 'intra')
+    print_rankings_matchups(inter_rankings, 'inter')
 
 if __name__ == "__main__":
     main()
