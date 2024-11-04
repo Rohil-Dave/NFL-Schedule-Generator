@@ -202,14 +202,13 @@ def find_inter_ranking_division(conf, div, inter_rankings):
         if conf2 == conf and div2 == div:
             return div1
 
-def assign_home_away_division(team_code, opponents):
+def assign_home_away_division(opponents):
     """
     Assign home/away designations for division games ensuring:
     1. Each opponent is played once at home and once away
     2. Total division home and away games are balanced (3 each)
     
     Args:
-        team_code (str): Team's abbreviation (e.g., 'JAX', 'NE')
         opponents (list): List of division opponent names
     
     Returns:
@@ -812,7 +811,7 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
     print(f"\nSchedule for {team_name} ({team_code}, an {conf} {div} Team, ranked {rank_ordinal}):")
 
     # Get actual home/away assignments for division games
-    home_div_games, away_div_games = assign_home_away_division(team_code, opponents)
+    home_div_games, away_div_games = assign_home_away_division(opponents)
 
     # Print division games
     print(f"\nDivision Matchups ({conf} {div}):")
