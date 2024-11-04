@@ -10,6 +10,7 @@ from schedule_setup import (
 
 # Module level dictionary to maintain consistency across assignments
 INTRA_CONF_ASSIGNMENTS = {}
+INTER_CONF_ASSIGNMENTS = {}
 
 def get_division_games(team_code):
     """
@@ -318,7 +319,79 @@ def get_intra_conference_games(team_code, intra_conf_teams):
             away_games.append((opponent_name, 'AWAY'))
     
     return home_games, away_games
-      
+
+def generate_inter_conference_assignments(inter_matchups):
+    """
+    Generate all inter-conference home/away assignments at once.
+    Should be called once at program start.
+    """
+    assignments = {}
+    
+    # Process each matchup pair
+    for conf1, div1, conf2, div2 in inter_matchups:
+        # Get teams from each division
+        div1_teams = NFL_TEAMS[conf1][div1]
+        div2_teams = NFL_TEAMS[conf2][div2]
+        
+        # Initialize assignments for all teams
+        for team in div1_teams + div2_teams:
+            if team['abbreviation'] not in assignments:
+                assignments[team['abbreviation']] = {}
+        
+        # Assign games between divisions
+        for i, team1 in enumerate(div1_teams):
+            for j, team2 in enumerate(div2_teams):
+                if (i + j) % 2 == 0:
+                    assignments[team1['abbreviation']][team2['abbreviation']] = 'HOME'
+                    assignments[team2['abbreviation']][team1['abbreviation']] = 'AWAY'
+                else:
+                    assignments[team1['abbreviation']][team2['abbreviation']] = 'AWAY'
+                    assignments[team2['abbreviation']][team1['abbreviation']] = 'HOME'
+    
+    # Verify assignments
+    for team_code in assignments:
+        home_games = sum(1 for loc in assignments[team_code].values() if loc == 'HOME')
+        away_games = sum(1 for loc in assignments[team_code].values() if loc == 'AWAY')
+        assert home_games == 2, f"{team_code} has {home_games} home games instead of 2"
+        assert away_games == 2, f"{team_code} has {away_games} away games instead of 2"
+    
+    return assignments
+
+def get_inter_conference_games(team_code, inter_conf_teams):
+    """
+    Get the home/away games for a team from the pre-generated assignments.
+    
+    Args:
+        team_code (str): Team's abbreviation
+        inter_conf_teams (list): List of team names from matched division in the OPPOSITE conference
+    
+    Returns:
+        tuple: (home_games, away_games) lists of tuples
+    """
+    home_games = []
+    away_games = []
+    
+    # Get opponent codes
+    _, team_conf, _, _ = get_division_games(team_code)
+    opp_conf = "NFC" if team_conf == "AFC" else "AFC"
+    opponent_codes = {}
+    for opponent_name in inter_conf_teams:
+        for div_teams in NFL_TEAMS[opp_conf].values():
+            for team in div_teams:
+                if team['name'] == opponent_name:
+                    opponent_codes[opponent_name] = team['abbreviation']
+                    break
+    
+    # Get assignments from global dictionary
+    for opponent_name, opponent_code in opponent_codes.items():
+        location = INTER_CONF_ASSIGNMENTS[team_code][opponent_code]
+        if location == 'HOME':
+            home_games.append((opponent_name, 'HOME'))
+        else:
+            away_games.append((opponent_name, 'AWAY'))
+    
+    return home_games, away_games
+
 def print_team_schedule(team_name, team_code, conf, div, opponents, 
                        intra_conf, intra_div, inter_conf, inter_div,
                        rank, intra_rank_opponents, intra_rank_divisions, 
@@ -351,7 +424,7 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
 
     # Get actual home/away assignments for division games
     home_div_games, away_div_games = assign_home_away_division(team_code, opponents)
-    
+
     # Print division games
     print(f"\nDivision Matchups ({conf} {div}):")
     for opponent in opponents:
@@ -360,7 +433,7 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
         away_count = sum(1 for game in away_div_games if game[0] == opponent)
         print(f"{opponent} ({home_count} HOME, {away_count} AWAY)")
     
-    # Get and print intra-conference games with home/away designations
+    # Get intra-conference games with home/away designations
     intra_conf_teams = get_teams_in_division(intra_conf, intra_div)
     home_intra_games, away_intra_games = get_intra_conference_games(team_code, intra_conf_teams)
 
@@ -369,11 +442,14 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
     for opponent, location in home_intra_games + away_intra_games:
         print(f"{opponent} ({location})")
     
+    # Get inter-conference games with home/away designations
+    inter_conf_teams = get_teams_in_division(inter_conf, inter_div)
+    home_inter_games, away_inter_games = get_inter_conference_games(team_code, inter_conf_teams)
+
     # Print inter-conference games
     print(f"\nInter-Conference Matchups ({inter_conf} {inter_div}):")
-    inter_teams = get_teams_in_division(inter_conf, inter_div)
-    for team in inter_teams:
-        print(team)
+    for opponent, location in home_inter_games + away_inter_games:
+        print(f"{opponent} ({location})")
         
     # Print intra-conference rankings-based matchups
     print(f"\nIntra-Rankings-Based Matchups ({rank_ordinal} {conf} {intra_rank_divisions[0]} and {rank_ordinal} {conf} {intra_rank_divisions[1]}):")
@@ -408,11 +484,14 @@ def main():
     print("\n" + "="*50 + "\n")
 
     # Generate all home/away assignments at start
-    global INTRA_CONF_ASSIGNMENTS
+    global INTRA_CONF_ASSIGNMENTS, INTER_CONF_ASSIGNMENTS
     INTRA_CONF_ASSIGNMENTS = generate_intra_conference_assignments(intra_matchups)
-    # In main(), after generating assignments:
+    INTER_CONF_ASSIGNMENTS = generate_inter_conference_assignments(inter_matchups)
+
+    # Print verification message after generating assignments
     print("\nVerifying assignments...")
     print(f"Intra-conference assignments created for {len(INTRA_CONF_ASSIGNMENTS)} teams")
+    print(f"Inter-conference assignments created for {len(INTER_CONF_ASSIGNMENTS)} teams")
     
     while True:
         team_code = input("\nEnter team abbreviation (or 'quit' to exit): ").upper()
