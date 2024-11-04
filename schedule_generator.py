@@ -502,7 +502,7 @@ def generate_intra_rank_assignments(standings, intra_rankings):
                     print(f"Current state - {team2}: {home_count[team2]} home, {away_count[team2]} away")
                     
                     # Determine which team should be home based on current counts
-                    if home_count[team1] < 1 and away_count[team2] < 1:
+                    if home_count[team1] < 1 and away_count[team2] < 1:  # THIS CREATES BIAS IN FAVOR OF ALPHABETICAL ORDER FOR HOME GAMES WHEN BOTH ELIGIBLE
                         # Give team1 a home game if possible
                         assignments[team1][team2] = 'HOME'
                         assignments[team2][team1] = 'AWAY'
