@@ -13,6 +13,7 @@ from schedule_setup import (
 INTRA_CONF_ASSIGNMENTS = {}
 INTER_CONF_ASSIGNMENTS = {}
 INTRA_RANK_ASSIGNMENTS = {}
+INTER_RANK_ASSIGNMENTS = {}
 
 def get_division_games(team_code):
     """
@@ -577,6 +578,208 @@ def get_intra_rank_games(team_code, intra_rank_opponents):
    
    return home_games, away_games
 
+def generate_inter_rank_assignments(standings, inter_rankings, existing_assignments=None):
+    """
+    Generate home/away assignments for inter-conference rankings-based games.
+    Ensures balance at conference and division levels while considering existing assignments.
+    
+    Args:
+        standings (dict): Current standings dictionary
+        inter_rankings (list): List of (conf1, div1, conf2, div2) tuples for inter-conference rankings
+        existing_assignments (dict, optional): Dictionary of existing home/away counts for each team
+    
+    Returns:
+        dict: Dictionary mapping each team to their home/away assignment for this game
+    """
+    assignments = {}
+    
+    # Track home games at conference and division level
+    conference_homes = {"AFC": 0, "NFC": 0}
+    division_homes = {
+        "AFC": {"North": 0, "South": 0, "East": 0, "West": 0},
+        "NFC": {"North": 0, "South": 0, "East": 0, "West": 0}
+    }
+    
+    # Initialize tracking for already processed teams
+    processed_teams = set()
+    matchups = []
+    
+    # First, collect all matchups from the rankings
+    for conf1, div1, conf2, div2 in inter_rankings:
+        # Get teams from each matched division
+        div1_teams = standings[conf1][div1]
+        div2_teams = standings[conf2][div2]
+        
+        # Match teams of same rank
+        for rank in range(4):
+            team1 = div1_teams[rank]
+            team2 = div2_teams[rank]
+            team1_code = team1['abbreviation']
+            team2_code = team2['abbreviation']
+            
+            # Create matchup tuple with team info for assignment
+            matchup = {
+                'team1': {
+                    'code': team1_code,
+                    'conf': conf1,
+                    'div': div1
+                },
+                'team2': {
+                    'code': team2_code,
+                    'conf': conf2,
+                    'div': div2
+                }
+            }
+            matchups.append(matchup)
+    
+    # First pass: Assign games where division balance forces the outcome
+    for matchup in matchups:
+        team1, team2 = matchup['team1'], matchup['team2']
+        
+        # Skip if either team already processed
+        if team1['code'] in processed_teams or team2['code'] in processed_teams:
+            continue
+            
+        # Check if division balance forces assignment
+        div1_needs_home = division_homes[team1['conf']][team1['div']] < 2
+        div2_needs_home = division_homes[team2['conf']][team2['div']] < 2
+        
+        # If only one division can still have a home game, assign it
+        if div1_needs_home and not div2_needs_home:
+            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'HOME'}
+            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'AWAY'}
+            division_homes[team1['conf']][team1['div']] += 1
+            conference_homes[team1['conf']] += 1
+            processed_teams.add(team1['code'])
+            processed_teams.add(team2['code'])
+        elif div2_needs_home and not div1_needs_home:
+            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'AWAY'}
+            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'HOME'}
+            division_homes[team2['conf']][team2['div']] += 1
+            conference_homes[team2['conf']] += 1
+            processed_teams.add(team1['code'])
+            processed_teams.add(team2['code'])
+    
+    # Second pass: Handle remaining matchups considering conference balance
+    for matchup in matchups:
+        team1, team2 = matchup['team1'], matchup['team2']
+        
+        # Skip if already processed
+        if team1['code'] in processed_teams or team2['code'] in processed_teams:
+            continue
+        
+        # Check conference and division constraints
+        conf1_can_home = conference_homes[team1['conf']] < 8
+        conf2_can_home = conference_homes[team2['conf']] < 8
+        div1_can_home = division_homes[team1['conf']][team1['div']] < 2
+        div2_can_home = division_homes[team2['conf']][team2['div']] < 2
+        
+        # Determine assignment based on constraints
+        if conf1_can_home and div1_can_home and not (conf2_can_home and div2_can_home):
+            # Give home game to team1
+            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'HOME'}
+            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'AWAY'}
+            division_homes[team1['conf']][team1['div']] += 1
+            conference_homes[team1['conf']] += 1
+        else:
+            # Give home game to team2
+            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'AWAY'}
+            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'HOME'}
+            division_homes[team2['conf']][team2['div']] += 1
+            conference_homes[team2['conf']] += 1
+        
+        processed_teams.add(team1['code'])
+        processed_teams.add(team2['code'])
+    
+    # Verify assignments
+    verify_inter_rank_assignments(assignments, conference_homes, division_homes)
+    
+    return assignments
+
+def verify_inter_rank_assignments(assignments, conference_homes, division_homes):
+    """
+    Verify that all inter-conference rankings-based assignment constraints are met.
+    
+    Args:
+        assignments (dict): Dictionary of team assignments
+        conference_homes (dict): Count of home games by conference
+        division_homes (dict): Nested dict of home games by conference and division
+    
+    Raises:
+        AssertionError: If any constraint is violated
+    """
+    # Count total assignments
+    total_games = len(assignments)
+    assert total_games == 32, f"Expected 32 total assignments, got {total_games}"
+    
+    # Verify each team has exactly one assignment
+    teams_assigned = set()
+    for team, assignment in assignments.items():
+        teams_assigned.add(team)
+        teams_assigned.add(assignment['opponent'])
+        
+        # Verify home/away consistency
+        opp_assignment = assignments[assignment['opponent']]
+        assert opp_assignment['opponent'] == team, \
+            f"Inconsistent opponent assignment for {team} and {assignment['opponent']}"
+        assert opp_assignment['location'] != assignment['location'], \
+            f"Both {team} and {assignment['opponent']} have {assignment['location']} assignment"
+    
+    assert len(teams_assigned) == 32, "Not all teams received inter-rankings assignments"
+    
+    # Verify conference balance
+    for conf, homes in conference_homes.items():
+        assert homes == 8, f"{conf} has {homes} home games instead of 8 for inter-rankings game"
+    
+    # Verify division balance
+    for conf in division_homes:
+        for div, homes in division_homes[conf].items():
+            assert homes == 2, f"{conf} {div} has {homes} home games instead of 2 for inter-rankings game"
+    
+    print("All inter-rankings assignments verified successfully:")
+    print(f"  - Each conference has exactly 8 home games")
+    print(f"  - Each division has exactly 2 home games")
+    print(f"  - All teams have exactly one inter-rankings assignment")
+    print(f"  - All assignments are consistent between paired teams")
+
+def get_inter_rank_games(team_code, inter_rank_opponent):
+    """
+    Get the home/away designation for a team's inter-conference ranking-based game.
+    
+    Args:
+        team_code (str): Team's abbreviation
+        inter_rank_opponent (str): Name of the opponent team
+    
+    Returns:
+        tuple: (home_game, away_game) where one will be empty and the other will contain
+               the (opponent_name, location) tuple
+    """
+    home_games = []
+    away_games = []
+    
+    # Get opponent code by searching through NFL_TEAMS
+    _, team_conf, _, _ = get_division_games(team_code)
+    opp_conf = "NFC" if team_conf == "AFC" else "AFC"
+    opponent_code = None
+    
+    # Find opponent's abbreviation
+    for div_teams in NFL_TEAMS[opp_conf].values():
+        for team in div_teams:
+            if team['name'] == inter_rank_opponent:
+                opponent_code = team['abbreviation']
+                break
+        if opponent_code:
+            break
+    
+    # Get assignment from global dictionary
+    location = INTER_RANK_ASSIGNMENTS[team_code]['location']
+    if location == 'HOME':
+        home_games.append((inter_rank_opponent, 'HOME'))
+    else:
+        away_games.append((inter_rank_opponent, 'AWAY'))
+    
+    return home_games, away_games
+
 def print_team_schedule(team_name, team_code, conf, div, opponents, 
                        intra_conf, intra_div, inter_conf, inter_div,
                        rank, intra_rank_opponents, intra_rank_divisions, 
@@ -645,9 +848,20 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
     for opponent, location in home_intra_rank_game + away_intra_rank_game:
         print(f"{opponent} ({location})")
 
+    # Get inter-conference ranking-based game with home/away designations
+    home_inter_rank_game, away_inter_rank_game = get_inter_rank_games(team_code, inter_rank_opponent)
+
     # Print inter-conference rankings-based matchup
     print(f"\nInter-Rankings-Based Matchup ({rank_ordinal} {inter_conf} {inter_rank_div}):")
-    print(inter_rank_opponent)
+    for opponent, location in home_inter_rank_game + away_inter_rank_game:
+        print(f"{opponent} ({location})")
+
+    # Print summary
+    total_home = len(home_div_games) + len(home_intra_games) + len(home_inter_games) + \
+                 len(home_intra_rank_game) + len(home_inter_rank_game)
+    total_away = len(away_div_games) + len(away_intra_games) + len(away_inter_games) + \
+                 len(away_intra_rank_game) + len(away_inter_rank_game)
+    print(f"\nTotal Games: {total_home + total_away} ({total_home} HOME, {total_away} AWAY)")
 
     print("=" * 30)
 
@@ -673,16 +887,18 @@ def main():
     print("\n" + "="*50 + "\n")
 
     # Generate all home/away assignments at start
-    global INTRA_CONF_ASSIGNMENTS, INTER_CONF_ASSIGNMENTS, INTRA_RANK_ASSIGNMENTS
+    global INTRA_CONF_ASSIGNMENTS, INTER_CONF_ASSIGNMENTS, INTRA_RANK_ASSIGNMENTS, INTER_RANK_ASSIGNMENTS
     INTRA_CONF_ASSIGNMENTS = generate_intra_conference_assignments(intra_matchups)
     INTER_CONF_ASSIGNMENTS = generate_inter_conference_assignments(inter_matchups)
     INTRA_RANK_ASSIGNMENTS = generate_intra_rank_assignments(standings, intra_rankings)
+    INTER_RANK_ASSIGNMENTS = generate_inter_rank_assignments(standings, inter_rankings)
 
     # Print verification message after generating assignments
     print("\nVerifying assignments...")
     print(f"Intra-conference assignments created for {len(INTRA_CONF_ASSIGNMENTS)} teams")
     print(f"Inter-conference assignments created for {len(INTER_CONF_ASSIGNMENTS)} teams")
     print(f"Intra-rankings assignments created for {len(INTRA_RANK_ASSIGNMENTS)} teams")
+    print(f"Inter-rankings assignments created for {len(INTER_RANK_ASSIGNMENTS)} teams")
     
     while True:
         team_code = input("\nEnter team abbreviation (or 'quit' to exit): ").upper()
