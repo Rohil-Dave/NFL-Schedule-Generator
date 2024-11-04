@@ -15,6 +15,30 @@ INTER_CONF_ASSIGNMENTS = {}
 INTRA_RANK_ASSIGNMENTS = {}
 INTER_RANK_ASSIGNMENTS = {}
 
+def validate_and_get_host_info(year):
+    """
+    Validate the year input and determine which conference hosts inter-conference rankings-based games.
+    The 17th game was added in 2021, and AFC hosts in odd years.
+    
+    Args:
+        year (int): The year to generate the schedule for
+        
+    Returns:
+        tuple: (is_valid, afc_hosts, error_message)
+            is_valid (bool): Whether the year is valid
+            afc_hosts (bool): Whether AFC hosts in the given year
+            error_message (str): Error message if year is invalid, empty string if valid
+    """
+    # Check if year is 2021 or later
+    if year < 2021:
+        return False, None, "Invalid year. The 17th game was added in 2021. Please enter 2021 or later."
+    
+    # Determine if AFC hosts (odd years) or NFC hosts (even years)
+    afc_hosts = year % 2 == 1
+    host_conf = "AFC" if afc_hosts else "NFC"
+    
+    return True, afc_hosts, f"For {year}, the {host_conf} will host the inter-rankings-based games"
+
 def get_division_games(team_code):
     """
     Find team's division and return their division opponents.
@@ -577,125 +601,94 @@ def get_intra_rank_games(team_code, intra_rank_opponents):
    
    return home_games, away_games
 
-def generate_inter_rank_assignments(standings, inter_rankings):
+def generate_inter_rank_assignments(standings, inter_rankings, afc_hosts):
     """
     Generate home/away assignments for inter-conference rankings-based games.
-    Ensures balance at conference and division levels while considering existing assignments.
+    Uses NFL rule: AFC hosts in odd years, NFC hosts in even years.
     
     Args:
         standings (dict): Current standings dictionary
-        inter_rankings (list): List of (conf1, div1, conf2, div2) tuples for inter-conference rankings
-        existing_assignments (dict, optional): Dictionary of existing home/away counts for each team
+        inter_rankings (list): List of (conf1, div1, conf2, div2) tuples
+        afc_hosts (bool): Whether AFC teams host the games this year
     
     Returns:
-        dict: Dictionary mapping each team to their home/away assignment for this game
+        dict: Dictionary mapping each team to their opponent and home/away designation
     """
     assignments = {}
     
-    # Track home games at conference and division level
-    conference_homes = {"AFC": 0, "NFC": 0}
-    division_homes = {
-        "AFC": {"North": 0, "South": 0, "East": 0, "West": 0},
-        "NFC": {"North": 0, "South": 0, "East": 0, "West": 0}
-    }
-    
-    # Initialize tracking for already processed teams
-    processed_teams = set()
-    matchups = []
-    
-    # First, collect all matchups from the rankings
+    # Process each division pairing from our inter-conference rankings matchups
     for conf1, div1, conf2, div2 in inter_rankings:
         # Get teams from each matched division
         div1_teams = standings[conf1][div1]
         div2_teams = standings[conf2][div2]
         
-        # Match teams of same rank
+        # Match teams of same rank (0-3 for the 4 positions)
         for rank in range(4):
             team1 = div1_teams[rank]
             team2 = div2_teams[rank]
-            team1_code = team1['abbreviation']
-            team2_code = team2['abbreviation']
             
-            # Create matchup tuple with team info for assignment
-            matchup = {
-                'team1': {
-                    'code': team1_code,
-                    'conf': conf1,
-                    'div': div1
-                },
-                'team2': {
-                    'code': team2_code,
-                    'conf': conf2,
-                    'div': div2
+            # Determine which team is AFC and which is NFC by checking conference
+            if team1['conference'] == 'AFC':
+                afc_team = team1
+                nfc_team = team2
+            else:  # team1 is NFC
+                afc_team = team2
+                nfc_team = team1
+            
+            # Assign home/away based on afc_hosts flag
+            if afc_hosts:
+                # AFC teams host in odd years
+                assignments[afc_team['abbreviation']] = {
+                    'opponent': nfc_team['abbreviation'],
+                    'location': 'HOME'
                 }
-            }
-            matchups.append(matchup)
+                assignments[nfc_team['abbreviation']] = {
+                    'opponent': afc_team['abbreviation'],
+                    'location': 'AWAY'
+                }
+            else:
+                # NFC teams host in even years
+                assignments[afc_team['abbreviation']] = {
+                    'opponent': nfc_team['abbreviation'],
+                    'location': 'AWAY'
+                }
+                assignments[nfc_team['abbreviation']] = {
+                    'opponent': afc_team['abbreviation'],
+                    'location': 'HOME'
+                }
     
-    # First pass: Assign games where division balance forces the outcome
-    for matchup in matchups:
-        team1, team2 = matchup['team1'], matchup['team2']
-        
-        # Skip if either team already processed
-        if team1['code'] in processed_teams or team2['code'] in processed_teams:
-            continue
-            
-        # Check if division balance forces assignment
-        div1_needs_home = division_homes[team1['conf']][team1['div']] < 2
-        div2_needs_home = division_homes[team2['conf']][team2['div']] < 2
-        
-        # If only one division can still have a home game, assign it
-        if div1_needs_home and not div2_needs_home:
-            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'HOME'}
-            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'AWAY'}
-            division_homes[team1['conf']][team1['div']] += 1
-            conference_homes[team1['conf']] += 1
-            processed_teams.add(team1['code'])
-            processed_teams.add(team2['code'])
-        elif div2_needs_home and not div1_needs_home:
-            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'AWAY'}
-            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'HOME'}
-            division_homes[team2['conf']][team2['div']] += 1
-            conference_homes[team2['conf']] += 1
-            processed_teams.add(team1['code'])
-            processed_teams.add(team2['code'])
+    # Build the conference homes dictionary for verification
+    hosting_conf = "AFC" if afc_hosts else "NFC"
+    visiting_conf = "NFC" if afc_hosts else "AFC"
     
-    # Second pass: Handle remaining matchups considering conference balance
-    for matchup in matchups:
-        team1, team2 = matchup['team1'], matchup['team2']
-        
-        # Skip if already processed
-        if team1['code'] in processed_teams or team2['code'] in processed_teams:
-            continue
-        
-        # Check conference and division constraints
-        conf1_can_home = conference_homes[team1['conf']] < 8
-        conf2_can_home = conference_homes[team2['conf']] < 8
-        div1_can_home = division_homes[team1['conf']][team1['div']] < 2
-        div2_can_home = division_homes[team2['conf']][team2['div']] < 2
-        
-        # Determine assignment based on constraints
-        if conf1_can_home and div1_can_home and not (conf2_can_home and div2_can_home):
-            # Give home game to team1
-            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'HOME'}
-            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'AWAY'}
-            division_homes[team1['conf']][team1['div']] += 1
-            conference_homes[team1['conf']] += 1
-        else:
-            # Give home game to team2
-            assignments[team1['code']] = {'opponent': team2['code'], 'location': 'AWAY'}
-            assignments[team2['code']] = {'opponent': team1['code'], 'location': 'HOME'}
-            division_homes[team2['conf']][team2['div']] += 1
-            conference_homes[team2['conf']] += 1
-        
-        processed_teams.add(team1['code'])
-        processed_teams.add(team2['code'])
+    conference_homes = {
+        hosting_conf: 16,  # All teams in hosting conference get home games
+        visiting_conf: 0   # All teams in visiting conference get away games
+    }
     
-    # Verify assignments
-    verify_inter_rank_assignments(assignments, conference_homes, division_homes)
+    # Build division homes dictionary for verification
+    division_homes = {
+        "AFC": {"North": 0, "South": 0, "East": 0, "West": 0},
+        "NFC": {"North": 0, "South": 0, "East": 0, "West": 0}
+    }
+    
+    # Count home games by division for verification
+    for team_code, assignment in assignments.items():
+        if assignment['location'] == 'HOME':
+            # Find the team's conference and division
+            for conf in NFL_TEAMS:
+                for div in NFL_TEAMS[conf]:
+                    for team in NFL_TEAMS[conf][div]:
+                        if team['abbreviation'] == team_code:
+                            division_homes[conf][div] += 1
+                            break
+    
+    # Verify all assignments meet requirements
+    verify_inter_rank_assignments(assignments, conference_homes, division_homes, afc_hosts)
     
     return assignments
 
-def verify_inter_rank_assignments(assignments, conference_homes, division_homes):
+def verify_inter_rank_assignments(assignments, conference_homes, division_homes, afc_hosts):
     """
     Verify that all inter-conference rankings-based assignment constraints are met.
     
@@ -703,21 +696,20 @@ def verify_inter_rank_assignments(assignments, conference_homes, division_homes)
         assignments (dict): Dictionary of team assignments
         conference_homes (dict): Count of home games by conference
         division_homes (dict): Nested dict of home games by conference and division
-    
-    Raises:
-        AssertionError: If any constraint is violated
+        afc_hosts (bool): Whether AFC teams host the games this year
     """
-    # Count total assignments
+    hosting_conf = "AFC" if afc_hosts else "NFC"
+    visiting_conf = "NFC" if afc_hosts else "AFC"
+    
+    # Verify total assignments and consistency
     total_games = len(assignments)
     assert total_games == 32, f"Expected 32 total assignments, got {total_games}"
     
-    # Verify each team has exactly one assignment
     teams_assigned = set()
     for team, assignment in assignments.items():
         teams_assigned.add(team)
         teams_assigned.add(assignment['opponent'])
         
-        # Verify home/away consistency
         opp_assignment = assignments[assignment['opponent']]
         assert opp_assignment['opponent'] == team, \
             f"Inconsistent opponent assignment for {team} and {assignment['opponent']}"
@@ -726,18 +718,23 @@ def verify_inter_rank_assignments(assignments, conference_homes, division_homes)
     
     assert len(teams_assigned) == 32, "Not all teams received inter-rankings assignments"
     
-    # Verify conference balance
-    for conf, homes in conference_homes.items():
-        assert homes == 8, f"{conf} has {homes} home games instead of 8 for inter-rankings game"
+    # Verify conference home/away counts
+    assert conference_homes[hosting_conf] == 16, \
+        f"{hosting_conf} has {conference_homes[hosting_conf]} home games, expected 16"
+    assert conference_homes[visiting_conf] == 0, \
+        f"{visiting_conf} has {conference_homes[visiting_conf]} home games, expected 0"
     
-    # Verify division balance
-    for conf in division_homes:
-        for div, homes in division_homes[conf].items():
-            assert homes == 2, f"{conf} {div} has {homes} home games instead of 2 for inter-rankings game"
+    # Verify division home/away counts
+    for div, homes in division_homes[hosting_conf].items():
+        assert homes == 4, \
+            f"{hosting_conf} {div} has {homes} home games, expected 4"
+    for div, homes in division_homes[visiting_conf].items():
+        assert homes == 0, \
+            f"{visiting_conf} {div} has {homes} home games, expected 0"
     
-    print("All inter-rankings assignments verified successfully:")
-    print(f"  - Each conference has exactly 8 home games")
-    print(f"  - Each division has exactly 2 home games")
+    print(f"\nAll inter-rankings assignments verified successfully for {'AFC' if afc_hosts else 'NFC'} hosting year:")
+    print(f"  - {hosting_conf} (hosting conference) has all home games")
+    print(f"  - {visiting_conf} (visiting conference) has all away games")
     print(f"  - All teams have exactly one inter-rankings assignment")
     print(f"  - All assignments are consistent between paired teams")
 
@@ -869,6 +866,19 @@ def main():
     Main function to run the NFL schedule generator.
     Handles the main program flow and user interaction.
     """
+    # Get and validate the year first
+    while True:
+        try:
+            year = int(input("\nEnter the year to generate schedule for (2021 or later): "))
+            is_valid, afc_hosts, message = validate_and_get_host_info(year)
+            if is_valid:
+                print(message)
+                break
+            else:
+                print(message)
+        except ValueError:
+            print("Please enter a valid year (e.g., 2024)")
+
     # Generate all matchups and standings at program start
     standings = generate_random_standings()
     intra_matchups = generate_pairings_matchups('intra')
@@ -881,6 +891,9 @@ def main():
     print_pairings_matchups(intra_matchups, 'intra')
     print_pairings_matchups(inter_matchups, 'inter')
 
+    # Display intra-rankings-based matchups for verification
+    print_rankings_matchups(intra_rankings, 'intra')
+
     # Display inter-rankings-based matchups for verification
     print_rankings_matchups(inter_rankings, 'inter')
     print("\n" + "="*50 + "\n")
@@ -890,7 +903,7 @@ def main():
     INTRA_CONF_ASSIGNMENTS = generate_intra_conference_assignments(intra_matchups)
     INTER_CONF_ASSIGNMENTS = generate_inter_conference_assignments(inter_matchups)
     INTRA_RANK_ASSIGNMENTS = generate_intra_rank_assignments(standings, intra_rankings)
-    INTER_RANK_ASSIGNMENTS = generate_inter_rank_assignments(standings, inter_rankings)
+    INTER_RANK_ASSIGNMENTS = generate_inter_rank_assignments(standings, inter_rankings, afc_hosts)
 
     # Print verification message after generating assignments
     print("\nVerifying assignments...")
