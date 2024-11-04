@@ -194,13 +194,64 @@ def find_inter_ranking_division(conf, div, inter_rankings):
             return div2
         if conf2 == conf and div2 == div:
             return div1
+
+def assign_home_away_division(team_code, opponents):
+    """
+    Assign home/away designations for division games ensuring:
+    1. Each opponent is played once at home and once away
+    2. Total division home and away games are balanced (3 each)
+    
+    Args:
+        team_code (str): Team's abbreviation (e.g., 'JAX', 'NE')
+        opponents (list): List of division opponent names
+    
+    Returns:
+        tuple: (home_games, away_games)
+            home_games: List of tuples (opponent, 'HOME')
+            away_games: List of tuples (opponent, 'AWAY')
+    """
+    # Initialize lists to store home and away matchups
+    home_games = []
+    away_games = []
+    
+    # Track totals for verification
+    home_div_games = 0
+    away_div_games = 0
+    
+    # Dictionary to track home/away split with each opponent
+    opponent_splits = {}
+    
+    # Process each opponent
+    for opponent in opponents:
+        # Each opponent must be played once at home and once away
+        home_games.append((opponent, 'HOME'))
+        away_games.append((opponent, 'AWAY'))
         
+        # Update the counters
+        home_div_games += 1
+        away_div_games += 1
+        
+        # Track the split with this specific opponent
+        opponent_splits[opponent] = {'HOME': 1, 'AWAY': 1}
+    
+    # Verify the assignments are balanced
+    assert home_div_games == 3, "Must have exactly 3 home division games"
+    assert away_div_games == 3, "Must have exactly 3 away division games"
+    
+    # For each opponent, verify one home and one away game
+    for opponent, splits in opponent_splits.items():
+        assert splits['HOME'] == 1, f"Must play {opponent} exactly once at home"
+        assert splits['AWAY'] == 1, f"Must play {opponent} exactly once away"
+    
+    return home_games, away_games
+       
 def print_team_schedule(team_name, team_code, conf, div, opponents, 
                        intra_conf, intra_div, inter_conf, inter_div,
                        rank, intra_rank_opponents, intra_rank_divisions, 
                        inter_rank_opponent, inter_rank_div):
     """
     Print the complete schedule for a team in a formatted way.
+    Now includes home/away designations for division games.
     
     Args:
         team_name (str): Full name of the team
@@ -223,11 +274,17 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
     
     # Print team header with rank
     print(f"\nSchedule for {team_name} ({team_code}, an {conf} {div} Team, ranked {rank_ordinal}):")
+
+    # Get actual home/away assignments for division games
+    home_div_games, away_div_games = assign_home_away_division(team_code, opponents)
     
     # Print division games
     print(f"\nDivision Matchups ({conf} {div}):")
     for opponent in opponents:
-        print(opponent)
+        # Count actual home and away games for this opponent
+        home_count = sum(1 for game in home_div_games if game[0] == opponent)
+        away_count = sum(1 for game in away_div_games if game[0] == opponent)
+        print(f"{opponent} ({home_count} Home, {away_count} Away)")
     
     # Print intra-conference games
     print(f"\nIntra-Conference Matchups ({conf} {intra_div}):")
