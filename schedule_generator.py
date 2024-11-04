@@ -397,13 +397,6 @@ def main():
     inter_matchups = generate_pairings_matchups('inter')
     intra_rankings = generate_rankings_matchups(intra_matchups, 'intra')
     inter_rankings = generate_rankings_matchups(inter_matchups, 'inter')
-
-    # Generate all home/away assignments at start
-    global INTRA_CONF_ASSIGNMENTS
-    INTRA_CONF_ASSIGNMENTS = generate_intra_conference_assignments(intra_matchups)
-    # In main(), after generating assignments:
-    print("\nVerifying assignments...")
-    print(f"Intra-conference assignments created for {len(INTRA_CONF_ASSIGNMENTS)} teams")
     
     # Display standings and all division pairings first for verification
     print_standings(standings)
@@ -413,6 +406,13 @@ def main():
     # Display inter-rankings-based matchups for verification
     print_rankings_matchups(inter_rankings, 'inter')
     print("\n" + "="*50 + "\n")
+
+    # Generate all home/away assignments at start
+    global INTRA_CONF_ASSIGNMENTS
+    INTRA_CONF_ASSIGNMENTS = generate_intra_conference_assignments(intra_matchups)
+    # In main(), after generating assignments:
+    print("\nVerifying assignments...")
+    print(f"Intra-conference assignments created for {len(INTRA_CONF_ASSIGNMENTS)} teams")
     
     while True:
         team_code = input("\nEnter team abbreviation (or 'quit' to exit): ").upper()
