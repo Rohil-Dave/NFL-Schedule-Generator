@@ -434,10 +434,9 @@ def generate_intra_rank_assignments(standings, intra_rankings):
     
     # Process each conference separately
     for conference in ["AFC", "NFC"]:
-        print(f"\nProcessing conference: {conference}")
+        print(f"\nGenerating intra-conference rankings matchups for {conference}...")
         
         # Create rank groups dictionary to hold teams of each rank
-        # Structure: {rank: [(team_code, division), ...]}
         rank_groups = {1: [], 2: [], 3: [], 4: []}
         
         # Group all teams by their rank and initialize assignments
@@ -448,8 +447,6 @@ def generate_intra_rank_assignments(standings, intra_rankings):
         
         # Process each rank group separately
         for rank in rank_groups:
-            print(f"\nProcessing rank: {rank}")
-            
             # Track games assigned to each team for this rank
             home_count = {team: 0 for team, _ in rank_groups[rank]}
             away_count = {team: 0 for team, _ in rank_groups[rank]}
@@ -457,27 +454,18 @@ def generate_intra_rank_assignments(standings, intra_rankings):
             # Get all required matchups for this rank
             matchups = set()
             for team_code, division in rank_groups[rank]:
-                # Get the two divisions this team plays against
                 opponent_divisions = intra_rankings[f"{conference} {division}"]
-                # Find opponents from those divisions
                 for opp_div in opponent_divisions:
                     opp_team = next(code for code, div in rank_groups[rank] if div == opp_div)
-                    # Store matchup in canonical order (alphabetically)
                     matchup = tuple(sorted([team_code, opp_team]))
                     matchups.add(matchup)
-                    print(f"Created matchup: {matchup}")
             
             # Convert to list and sort for deterministic processing
             matchups = sorted(matchups)
             
             # First pass: Assign games where one team desperately needs a home game
-            # (already has an away game and no home games)
             for team1, team2 in matchups:
                 if not assignments[team1].get(team2):  # Only process unassigned matchups
-                    print(f"\nAssigning {team1} vs {team2}:")
-                    print(f"Current state - {team1}: {home_count[team1]} home, {away_count[team1]} away")
-                    print(f"Current state - {team2}: {home_count[team2]} home, {away_count[team2]} away")
-                    
                     if home_count[team1] == 0 and away_count[team1] == 1:
                         # team1 needs a home game
                         assignments[team1][team2] = 'HOME'
@@ -490,19 +478,11 @@ def generate_intra_rank_assignments(standings, intra_rankings):
                         assignments[team2][team1] = 'HOME'
                         away_count[team1] += 1
                         home_count[team2] += 1
-                    
-                    print(f"After assignment - {team1}: {home_count[team1]} home, {away_count[team1]} away")
-                    print(f"After assignment - {team2}: {home_count[team2]} home, {away_count[team2]} away")
             
             # Second pass: Assign remaining games balancing home/away counts
             for team1, team2 in matchups:
                 if not assignments[team1].get(team2):  # Only process unassigned matchups
-                    print(f"\nAssigning {team1} vs {team2}:")
-                    print(f"Current state - {team1}: {home_count[team1]} home, {away_count[team1]} away")
-                    print(f"Current state - {team2}: {home_count[team2]} home, {away_count[team2]} away")
-                    
-                    # Determine which team should be home based on current counts
-                    if home_count[team1] < 1 and away_count[team2] < 1:  # THIS CREATES BIAS IN FAVOR OF ALPHABETICAL ORDER FOR HOME GAMES WHEN BOTH ELIGIBLE
+                    if home_count[team1] < 1 and away_count[team2] < 1: # THIS CREATS ALPHABETICAL BIAS FOR HOME WHEN BOTH ELIGIBLE
                         # Give team1 a home game if possible
                         assignments[team1][team2] = 'HOME'
                         assignments[team2][team1] = 'AWAY'
@@ -514,24 +494,21 @@ def generate_intra_rank_assignments(standings, intra_rankings):
                         assignments[team2][team1] = 'HOME'
                         away_count[team1] += 1
                         home_count[team2] += 1
-                    
-                    print(f"After assignment - {team1}: {home_count[team1]} home, {away_count[team1]} away")
-                    print(f"After assignment - {team2}: {home_count[team2]} home, {away_count[team2]} away")
             
             # Verify assignments for this rank
             for team, _ in rank_groups[rank]:
                 assert home_count[team] == 1, f"Team {team} has {home_count[team]} home games"
                 assert away_count[team] == 1, f"Team {team} has {away_count[team]} away games"
     
-    # Print final assignments for verification
-    print("\nFinal Assignments:")
-    for team_code in sorted(assignments.keys()):
-        home_games = sum(1 for loc in assignments[team_code].values() if loc == 'HOME')
-        away_games = sum(1 for loc in assignments[team_code].values() if loc == 'AWAY')
-        print(f"{team_code}: {home_games} home, {away_games} away")
-    
     # Run final verification
     verify_intra_rank_assignments(assignments)
+    
+    # Print verification summary
+    print("\nAll intra-conference rankings assignments verified successfully:")
+    print(f"  - All games follow the intra-conference rankings matchup rules")
+    print(f"  - All teams have exactly one home game and one away game")
+    print(f"  - All games are between teams of the same rank")
+    print(f"  - All assignments are consistent between paired teams")
     
     return assignments
 
@@ -732,7 +709,7 @@ def verify_inter_rank_assignments(assignments, conference_homes, division_homes,
         assert homes == 0, \
             f"{visiting_conf} {div} has {homes} home games, expected 0"
     
-    print(f"\nAll inter-rankings assignments verified successfully for {'AFC' if afc_hosts else 'NFC'} hosting year:")
+    print(f"\nAll inter-conference rankings assignments verified successfully for {'AFC' if afc_hosts else 'NFC'} hosting year:")
     print(f"  - {hosting_conf} (hosting conference) has all home games")
     print(f"  - {visiting_conf} (visiting conference) has all away games")
     print(f"  - All teams have exactly one inter-rankings assignment")
@@ -885,18 +862,20 @@ def main():
     inter_matchups = generate_pairings_matchups('inter')
     intra_rankings = generate_rankings_matchups(intra_matchups, 'intra')
     inter_rankings = generate_rankings_matchups(inter_matchups, 'inter')
-    
-    # Display standings and all division pairings first for verification
-    print_standings(standings)
-    print_pairings_matchups(intra_matchups, 'intra')
-    print_pairings_matchups(inter_matchups, 'inter')
 
-    # Display intra-rankings-based matchups for verification
-    print_rankings_matchups(intra_rankings, 'intra')
 
-    # Display inter-rankings-based matchups for verification
-    print_rankings_matchups(inter_rankings, 'inter')
-    print("\n" + "="*50 + "\n")
+    # UN-COMMENT THE FOLLOWING THREE BLOCKS TO PRINT STANDINGS AND MATCHUPS FOR VERIFICATION
+    # # Display standings and all division pairings first for verification
+    # print_standings(standings)
+    # print_pairings_matchups(intra_matchups, 'intra')
+    # print_pairings_matchups(inter_matchups, 'inter')
+
+    # # Display intra-rankings-based matchups for verification
+    # print_rankings_matchups(intra_rankings, 'intra')
+
+    # # Display inter-rankings-based matchups for verification
+    # print_rankings_matchups(inter_rankings, 'inter')
+    # print("\n" + "="*50 + "\n")
 
     # Generate all home/away assignments at start
     global INTRA_CONF_ASSIGNMENTS, INTER_CONF_ASSIGNMENTS, INTRA_RANK_ASSIGNMENTS, INTER_RANK_ASSIGNMENTS
