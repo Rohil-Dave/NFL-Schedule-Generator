@@ -1,3 +1,4 @@
+import random
 from nfl_teams import NFL_TEAMS
 from schedule_setup import (
     generate_random_standings,
@@ -11,6 +12,7 @@ from schedule_setup import (
 # Module level dictionary to maintain consistency across assignments
 INTRA_CONF_ASSIGNMENTS = {}
 INTER_CONF_ASSIGNMENTS = {}
+INTRA_RANK_ASSIGNMENTS = {}
 
 def get_division_games(team_code):
     """
@@ -392,13 +394,146 @@ def get_inter_conference_games(team_code, inter_conf_teams):
     
     return home_games, away_games
 
+def generate_intra_rank_assignments(standings, intra_rankings):
+    """
+    Generate all intra-conference ranking-based home/away assignments ensuring balanced and consistent assignments.
+    
+    Args:
+        standings (dict): Current standings dictionary
+        intra_rankings (dict): Dictionary mapping each division to its two opponent divisions
+    
+    Returns:
+        dict: Dictionary mapping each team to their home/away assignments
+    """
+    assignments = {}
+    processed_pairs = set()
+    
+    # First, collect all matchups that need to be made
+    matchups = []
+    
+    # Process each conference separately
+    for conference in ["AFC", "NFC"]:
+        # First, collect all division-rank combinations
+        div_rank_pairs = []
+        for division in ["North", "South", "East", "West"]:
+            for rank in range(4):  # 0-3 for the 4 positions
+                div_rank_pairs.append((division, rank))
+        
+        # For each division-rank combination
+        for division, rank in div_rank_pairs:
+            # Get the current team
+            team = standings[conference][division][rank]
+            team_code = team['abbreviation']
+            
+            # Get their two opponent divisions
+            opponent_divisions = intra_rankings[f"{conference} {division}"]
+            
+            # For each opponent division
+            for opp_div in opponent_divisions:
+                # Get opponent at same rank
+                opponent = standings[conference][opp_div][rank]
+                opp_code = opponent['abbreviation']
+                
+                # Create a sorted pair to avoid duplicates
+                pair = tuple(sorted([team_code, opp_code]))
+                if pair not in processed_pairs:
+                    matchups.append((team_code, opp_code))
+                    processed_pairs.add(pair)
+    
+    # Initialize assignments dictionary for all teams
+    for matchup in matchups:
+        team1, team2 = matchup
+        if team1 not in assignments:
+            assignments[team1] = {}
+        if team2 not in assignments:
+            assignments[team2] = {}
+    
+    # Now assign home/away for each matchup
+    for team1, team2 in matchups:
+        # Count current home games for both teams
+        team1_homes = sum(1 for v in assignments[team1].values() if v == 'HOME')
+        team2_homes = sum(1 for v in assignments[team2].values() if v == 'HOME')
+        
+        # If either team already has their home game, assign accordingly
+        if team1_homes == 1:
+            assignments[team1][team2] = 'AWAY'
+            assignments[team2][team1] = 'HOME'
+        elif team2_homes == 1:
+            assignments[team1][team2] = 'HOME'
+            assignments[team2][team1] = 'AWAY'
+        # If neither has a home game, give it to team1
+        elif team1_homes == 0:
+            assignments[team1][team2] = 'HOME'
+            assignments[team2][team1] = 'AWAY'
+        # If both already have home games (shouldn't happen), give away game to both
+        else:
+            assignments[team1][team2] = 'AWAY'
+            assignments[team2][team1] = 'HOME'
+    
+    # Verify assignments
+    for team_code in assignments:
+        home_games = sum(1 for loc in assignments[team_code].values() if loc == 'HOME')
+        away_games = sum(1 for loc in assignments[team_code].values() if loc == 'AWAY')
+        assert home_games == 1, f"{team_code} has {home_games} home games instead of 1"
+        assert away_games == 1, f"{team_code} has {away_games} away games instead of 1"
+        
+        # Additional verification - check consistency
+        for opp_code, location in assignments[team_code].items():
+            assert assignments[opp_code][team_code] != location, \
+                f"Inconsistent assignments between {team_code} and {opp_code}"
+    
+    return assignments
+
+def get_intra_rank_games(team_code, intra_rank_opponents):
+   """
+   Get the home/away games for a team's intra-conference ranking-based games 
+   from the pre-generated assignments.
+   
+   Args:
+       team_code (str): Team's abbreviation
+       intra_rank_opponents (list): List of team names for ranking-based opponents
+   
+   Returns:
+       tuple: (home_games, away_games) lists of tuples
+           home_games (list): List of tuples (opponent_name, 'HOME')
+           away_games (list): List of tuples (opponent_name, 'AWAY')
+   """
+   home_games = []
+   away_games = []
+   
+   # Get opponent codes by searching through NFL_TEAMS
+   _, team_conf, _, _ = get_division_games(team_code)
+   opponent_codes = {}
+   for opponent_name in intra_rank_opponents:
+       # Search each division in the conference for this opponent
+       for div_teams in NFL_TEAMS[team_conf].values():
+           for team in div_teams:
+               if team['name'] == opponent_name:
+                   opponent_codes[opponent_name] = team['abbreviation']
+                   break
+   
+   # Get assignments from global dictionary
+   for opponent_name, opponent_code in opponent_codes.items():
+       location = INTRA_RANK_ASSIGNMENTS[team_code][opponent_code]
+       if location == 'HOME':
+           home_games.append((opponent_name, 'HOME'))
+       else:
+           away_games.append((opponent_name, 'AWAY'))
+   
+   # Verify we got exactly one home and one away game
+   assert len(home_games) == 1, f"{team_code} has {len(home_games)} home ranking-based games instead of 1"
+   assert len(away_games) == 1, f"{team_code} has {len(away_games)} away ranking-based games instead of 1"
+   
+   return home_games, away_games
+
 def print_team_schedule(team_name, team_code, conf, div, opponents, 
                        intra_conf, intra_div, inter_conf, inter_div,
                        rank, intra_rank_opponents, intra_rank_divisions, 
                        inter_rank_opponent, inter_rank_div):
     """
     Print the complete schedule for a team in a formatted way.
-    Now includes home/away designations for division games.
+    Now includes home/away designations for division games, intra-conference matchup games,
+    inter-conference matchup games, and intra-rankings-based games.
     
     Args:
         team_name (str): Full name of the team
@@ -450,11 +585,14 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
     print(f"\nInter-Conference Matchups ({inter_conf} {inter_div}):")
     for opponent, location in home_inter_games + away_inter_games:
         print(f"{opponent} ({location})")
-        
+    
+    # Get intra-conference ranking-based games with home/away designations
+    home_intra_rank_game, away_intra_rank_game = get_intra_rank_games(team_code, intra_rank_opponents)
+    
     # Print intra-conference rankings-based matchups
     print(f"\nIntra-Rankings-Based Matchups ({rank_ordinal} {conf} {intra_rank_divisions[0]} and {rank_ordinal} {conf} {intra_rank_divisions[1]}):")
-    for opponent in intra_rank_opponents:
-        print(opponent)
+    for opponent, location in home_intra_rank_game + away_intra_rank_game:
+        print(f"{opponent} ({location})")
 
     # Print inter-conference rankings-based matchup
     print(f"\nInter-Rankings-Based Matchup ({rank_ordinal} {inter_conf} {inter_rank_div}):")
@@ -484,14 +622,16 @@ def main():
     print("\n" + "="*50 + "\n")
 
     # Generate all home/away assignments at start
-    global INTRA_CONF_ASSIGNMENTS, INTER_CONF_ASSIGNMENTS
+    global INTRA_CONF_ASSIGNMENTS, INTER_CONF_ASSIGNMENTS, INTRA_RANK_ASSIGNMENTS
     INTRA_CONF_ASSIGNMENTS = generate_intra_conference_assignments(intra_matchups)
     INTER_CONF_ASSIGNMENTS = generate_inter_conference_assignments(inter_matchups)
+    INTRA_RANK_ASSIGNMENTS = generate_intra_rank_assignments(standings, intra_rankings)
 
     # Print verification message after generating assignments
     print("\nVerifying assignments...")
     print(f"Intra-conference assignments created for {len(INTRA_CONF_ASSIGNMENTS)} teams")
     print(f"Inter-conference assignments created for {len(INTER_CONF_ASSIGNMENTS)} teams")
+    print(f"Intra-rankings assignments created for {len(INTRA_RANK_ASSIGNMENTS)} teams")
     
     while True:
         team_code = input("\nEnter team abbreviation (or 'quit' to exit): ").upper()
