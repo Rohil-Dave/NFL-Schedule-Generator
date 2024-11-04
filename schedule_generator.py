@@ -396,7 +396,9 @@ def get_inter_conference_games(team_code, inter_conf_teams):
 
 def generate_intra_rank_assignments(standings, intra_rankings):
     """
-    Generate all intra-conference ranking-based home/away assignments ensuring balanced and consistent assignments.
+    Generate all intra-conference ranking-based home/away assignments ensuring balanced
+    and randomized assignments. Each team should get exactly 2 games (1 home, 1 away)
+    against teams of the same rank from different divisions in their conference.
     
     Args:
         standings (dict): Current standings dictionary
@@ -405,79 +407,128 @@ def generate_intra_rank_assignments(standings, intra_rankings):
     Returns:
         dict: Dictionary mapping each team to their home/away assignments
     """
-    assignments = {}
-    processed_pairs = set()
+    # Initialize tracking dictionaries
+    assignments = {}  # Will store final home/away assignments
+    processed_pairs = set()  # Track which team pairs we've already processed
+    total_games = {}  # Track total games assigned to each team
+    home_games = {}  # Track home games assigned to each team
+    away_games = {}  # Track away games assigned to each team
+    matchups = []  # Will store all matchups we need to process
     
-    # First, collect all matchups that need to be made
-    matchups = []
-    
-    # Process each conference separately
+    # Process each conference separately since rankings-based games are intra-conference
     for conference in ["AFC", "NFC"]:
-        # First, collect all division-rank combinations
+        # Build list of all division-rank combinations
         div_rank_pairs = []
         for division in ["North", "South", "East", "West"]:
-            for rank in range(4):  # 0-3 for the 4 positions
+            for rank in range(4):  # 0-3 for the 4 positions in each division
                 div_rank_pairs.append((division, rank))
         
-        # For each division-rank combination
+        # Generate all required matchups
         for division, rank in div_rank_pairs:
-            # Get the current team
+            # Get current team's info
             team = standings[conference][division][rank]
             team_code = team['abbreviation']
             
-            # Get their two opponent divisions
+            # Initialize tracking counters for this team if we haven't seen it yet
+            if team_code not in total_games:
+                total_games[team_code] = 0
+                home_games[team_code] = 0
+                away_games[team_code] = 0
+            
+            # Get the two divisions this team needs to play against
             opponent_divisions = intra_rankings[f"{conference} {division}"]
             
-            # For each opponent division
+            # Process each opponent division
             for opp_div in opponent_divisions:
-                # Get opponent at same rank
+                # Get the team of same rank from opponent division
                 opponent = standings[conference][opp_div][rank]
                 opp_code = opponent['abbreviation']
                 
-                # Create a sorted pair to avoid duplicates
+                # Initialize tracking counters for opponent if needed
+                if opp_code not in total_games:
+                    total_games[opp_code] = 0
+                    home_games[opp_code] = 0
+                    away_games[opp_code] = 0
+                
+                # Create unique identifier for this pair to avoid duplicates
                 pair = tuple(sorted([team_code, opp_code]))
+                
+                # Only process if we haven't handled this pair yet
                 if pair not in processed_pairs:
-                    matchups.append((team_code, opp_code))
+                    # Randomly order the teams to avoid alphabetical bias
+                    if random.random() < 0.5:
+                        matchups.append((team_code, opp_code))
+                    else:
+                        matchups.append((opp_code, team_code))
                     processed_pairs.add(pair)
     
-    # Initialize assignments dictionary for all teams
-    for matchup in matchups:
-        team1, team2 = matchup
-        if team1 not in assignments:
-            assignments[team1] = {}
-        if team2 not in assignments:
-            assignments[team2] = {}
+    # Initialize the assignments dictionary for all teams
+    for team_code in total_games:
+        assignments[team_code] = {}
     
-    # Now assign home/away for each matchup
+    # Randomly shuffle matchups to ensure random processing order
+    random.shuffle(matchups)
+    
+    # Process each matchup to assign home/away
     for team1, team2 in matchups:
-        # Count current home games for both teams
-        team1_homes = sum(1 for v in assignments[team1].values() if v == 'HOME')
-        team2_homes = sum(1 for v in assignments[team2].values() if v == 'HOME')
+        # Case 1: Neither team has any games yet - randomly assign
+        if total_games[team1] == 0 and total_games[team2] == 0:
+            if random.random() < 0.5:
+                assignments[team1][team2] = 'HOME'
+                assignments[team2][team1] = 'AWAY'
+                home_games[team1] += 1
+                away_games[team2] += 1
+            else:
+                assignments[team1][team2] = 'AWAY'
+                assignments[team2][team1] = 'HOME'
+                away_games[team1] += 1
+                home_games[team2] += 1
         
-        # If either team already has their home game, assign accordingly
-        if team1_homes == 1:
-            assignments[team1][team2] = 'AWAY'
-            assignments[team2][team1] = 'HOME'
-        elif team2_homes == 1:
-            assignments[team1][team2] = 'HOME'
-            assignments[team2][team1] = 'AWAY'
-        # If neither has a home game, give it to team1
-        elif team1_homes == 0:
-            assignments[team1][team2] = 'HOME'
-            assignments[team2][team1] = 'AWAY'
-        # If both already have home games (shouldn't happen), give away game to both
+        # Case 2: One or both teams have games - must follow balance rules
         else:
-            assignments[team1][team2] = 'AWAY'
-            assignments[team2][team1] = 'HOME'
+            # If team1 needs a home game and team2 can be away
+            if home_games[team1] == 0 and away_games[team2] == 0:
+                assignments[team1][team2] = 'HOME'
+                assignments[team2][team1] = 'AWAY'
+                home_games[team1] += 1
+                away_games[team2] += 1
+            # If team2 needs a home game and team1 can be away
+            elif home_games[team2] == 0 and away_games[team1] == 0:
+                assignments[team1][team2] = 'AWAY'
+                assignments[team2][team1] = 'HOME'
+                away_games[team1] += 1
+                home_games[team2] += 1
+            # If both need home games (should rarely happen due to tracking)
+            else:
+                # Give home game to team with fewer total games
+                if total_games[team1] < total_games[team2]:
+                    assignments[team1][team2] = 'HOME'
+                    assignments[team2][team1] = 'AWAY'
+                    home_games[team1] += 1
+                    away_games[team2] += 1
+                else:
+                    assignments[team1][team2] = 'AWAY'
+                    assignments[team2][team1] = 'HOME'
+                    away_games[team1] += 1
+                    home_games[team2] += 1
+        
+        # Update total games counter
+        total_games[team1] += 1
+        total_games[team2] += 1
     
     # Verify assignments
     for team_code in assignments:
-        home_games = sum(1 for loc in assignments[team_code].values() if loc == 'HOME')
-        away_games = sum(1 for loc in assignments[team_code].values() if loc == 'AWAY')
-        assert home_games == 1, f"{team_code} has {home_games} home games instead of 1"
-        assert away_games == 1, f"{team_code} has {away_games} away games instead of 1"
+        # Verify total number of games
+        assert total_games[team_code] == 2, \
+            f"{team_code} has {total_games[team_code]} total games instead of 2"
         
-        # Additional verification - check consistency
+        # Verify home/away balance
+        assert home_games[team_code] == 1, \
+            f"{team_code} has {home_games[team_code]} home games instead of 1"
+        assert away_games[team_code] == 1, \
+            f"{team_code} has {away_games[team_code]} away games instead of 1"
+        
+        # Verify consistency of assignments
         for opp_code, location in assignments[team_code].items():
             assert assignments[opp_code][team_code] != location, \
                 f"Inconsistent assignments between {team_code} and {opp_code}"
