@@ -8,6 +8,9 @@ from schedule_setup import (
     print_rankings_matchups
 )
 
+# Module level dictionary to maintain consistency across assignments
+INTRA_CONF_ASSIGNMENTS = {}
+
 def get_division_games(team_code):
     """
     Find team's division and return their division opponents.
@@ -213,38 +216,109 @@ def assign_home_away_division(team_code, opponents):
     # Initialize lists to store home and away matchups
     home_games = []
     away_games = []
-    
+
     # Track totals for verification
     home_div_games = 0
     away_div_games = 0
-    
+
     # Dictionary to track home/away split with each opponent
     opponent_splits = {}
-    
+
     # Process each opponent
     for opponent in opponents:
         # Each opponent must be played once at home and once away
         home_games.append((opponent, 'HOME'))
         away_games.append((opponent, 'AWAY'))
-        
+
         # Update the counters
         home_div_games += 1
         away_div_games += 1
-        
+
         # Track the split with this specific opponent
         opponent_splits[opponent] = {'HOME': 1, 'AWAY': 1}
-    
+
     # Verify the assignments are balanced
     assert home_div_games == 3, "Must have exactly 3 home division games"
     assert away_div_games == 3, "Must have exactly 3 away division games"
-    
+
     # For each opponent, verify one home and one away game
     for opponent, splits in opponent_splits.items():
         assert splits['HOME'] == 1, f"Must play {opponent} exactly once at home"
         assert splits['AWAY'] == 1, f"Must play {opponent} exactly once away"
+
+    return home_games, away_games
+
+def generate_intra_conference_assignments(intra_matchups):
+    """
+    Generate all intra-conference home/away assignments at once.
+    Should be called once at program start.
+    """
+    assignments = {}
+    
+    # Process each matchup pair
+    for conf1, div1, conf2, div2 in intra_matchups:
+        # Get teams from each division
+        div1_teams = NFL_TEAMS[conf1][div1]
+        div2_teams = NFL_TEAMS[conf2][div2]
+        
+        # Initialize assignments for all teams
+        for team in div1_teams + div2_teams:
+            if team['abbreviation'] not in assignments:
+                assignments[team['abbreviation']] = {}
+        
+        # Assign games between divisions
+        for i, team1 in enumerate(div1_teams):
+            for j, team2 in enumerate(div2_teams):
+                if (i + j) % 2 == 0:
+                    assignments[team1['abbreviation']][team2['abbreviation']] = 'HOME'
+                    assignments[team2['abbreviation']][team1['abbreviation']] = 'AWAY'
+                else:
+                    assignments[team1['abbreviation']][team2['abbreviation']] = 'AWAY'
+                    assignments[team2['abbreviation']][team1['abbreviation']] = 'HOME'
+    
+    # Verify assignments
+    for team_code in assignments:
+        home_games = sum(1 for loc in assignments[team_code].values() if loc == 'HOME')
+        away_games = sum(1 for loc in assignments[team_code].values() if loc == 'AWAY')
+        assert home_games == 2, f"{team_code} has {home_games} home games instead of 2"
+        assert away_games == 2, f"{team_code} has {away_games} away games instead of 2"
+    
+    return assignments
+
+def get_intra_conference_games(team_code, intra_conf_teams):
+    """
+    Get the home/away games for a team from the pre-generated assignments.
+    
+    Args:
+        team_code (str): Team's abbreviation
+        intra_conf_teams (list): List of team names from matched division
+    
+    Returns:
+        tuple: (home_games, away_games) lists of tuples
+    """
+    home_games = []
+    away_games = []
+    
+    # Get opponent codes
+    _, team_conf, _, _ = get_division_games(team_code)
+    opponent_codes = {}
+    for opponent_name in intra_conf_teams:
+        for div_teams in NFL_TEAMS[team_conf].values():
+            for team in div_teams:
+                if team['name'] == opponent_name:
+                    opponent_codes[opponent_name] = team['abbreviation']
+                    break
+    
+    # Get assignments from global dictionary
+    for opponent_name, opponent_code in opponent_codes.items():
+        location = INTRA_CONF_ASSIGNMENTS[team_code][opponent_code]
+        if location == 'HOME':
+            home_games.append((opponent_name, 'HOME'))
+        else:
+            away_games.append((opponent_name, 'AWAY'))
     
     return home_games, away_games
-       
+      
 def print_team_schedule(team_name, team_code, conf, div, opponents, 
                        intra_conf, intra_div, inter_conf, inter_div,
                        rank, intra_rank_opponents, intra_rank_divisions, 
@@ -284,13 +358,16 @@ def print_team_schedule(team_name, team_code, conf, div, opponents,
         # Count actual home and away games for this opponent
         home_count = sum(1 for game in home_div_games if game[0] == opponent)
         away_count = sum(1 for game in away_div_games if game[0] == opponent)
-        print(f"{opponent} ({home_count} Home, {away_count} Away)")
+        print(f"{opponent} ({home_count} HOME, {away_count} AWAY)")
     
+    # Get and print intra-conference games with home/away designations
+    intra_conf_teams = get_teams_in_division(intra_conf, intra_div)
+    home_intra_games, away_intra_games = get_intra_conference_games(team_code, intra_conf_teams)
+
     # Print intra-conference games
     print(f"\nIntra-Conference Matchups ({conf} {intra_div}):")
-    intra_teams = get_teams_in_division(intra_conf, intra_div)
-    for team in intra_teams:
-        print(team)
+    for opponent, location in home_intra_games + away_intra_games:
+        print(f"{opponent} ({location})")
     
     # Print inter-conference games
     print(f"\nInter-Conference Matchups ({inter_conf} {inter_div}):")
@@ -320,6 +397,13 @@ def main():
     inter_matchups = generate_pairings_matchups('inter')
     intra_rankings = generate_rankings_matchups(intra_matchups, 'intra')
     inter_rankings = generate_rankings_matchups(inter_matchups, 'inter')
+
+    # Generate all home/away assignments at start
+    global INTRA_CONF_ASSIGNMENTS
+    INTRA_CONF_ASSIGNMENTS = generate_intra_conference_assignments(intra_matchups)
+    # In main(), after generating assignments:
+    print("\nVerifying assignments...")
+    print(f"Intra-conference assignments created for {len(INTRA_CONF_ASSIGNMENTS)} teams")
     
     # Display standings and all division pairings first for verification
     print_standings(standings)
