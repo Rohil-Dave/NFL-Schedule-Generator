@@ -865,17 +865,17 @@ def main():
 
 
     # UN-COMMENT THE FOLLOWING THREE BLOCKS TO PRINT STANDINGS AND MATCHUPS FOR VERIFICATION
-    # # Display standings and all division pairings first for verification
-    # print_standings(standings)
-    # print_pairings_matchups(intra_matchups, 'intra')
-    # print_pairings_matchups(inter_matchups, 'inter')
+    # Display standings and all division pairings first for verification
+    print_standings(standings)
+    print_pairings_matchups(intra_matchups, 'intra')
+    print_pairings_matchups(inter_matchups, 'inter')
 
-    # # Display intra-rankings-based matchups for verification
-    # print_rankings_matchups(intra_rankings, 'intra')
+    # Display intra-rankings-based matchups for verification
+    print_rankings_matchups(intra_rankings, 'intra')
 
-    # # Display inter-rankings-based matchups for verification
-    # print_rankings_matchups(inter_rankings, 'inter')
-    # print("\n" + "="*50 + "\n")
+    # Display inter-rankings-based matchups for verification
+    print_rankings_matchups(inter_rankings, 'inter')
+    print("\n" + "="*50 + "\n")
 
     # Generate all home/away assignments at start
     global INTRA_CONF_ASSIGNMENTS, INTER_CONF_ASSIGNMENTS, INTRA_RANK_ASSIGNMENTS, INTER_RANK_ASSIGNMENTS
