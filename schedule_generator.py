@@ -577,7 +577,7 @@ def get_intra_rank_games(team_code, intra_rank_opponents):
    
    return home_games, away_games
 
-def generate_inter_rank_assignments(standings, inter_rankings, existing_assignments=None):
+def generate_inter_rank_assignments(standings, inter_rankings):
     """
     Generate home/away assignments for inter-conference rankings-based games.
     Ensures balance at conference and division levels while considering existing assignments.
