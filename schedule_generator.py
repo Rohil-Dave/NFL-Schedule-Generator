@@ -281,8 +281,8 @@ def generate_intra_conference_assignments(intra_matchups):
     for team_code in assignments:
         home_games = sum(1 for loc in assignments[team_code].values() if loc == 'HOME')
         away_games = sum(1 for loc in assignments[team_code].values() if loc == 'AWAY')
-        assert home_games == 2, f"{team_code} has {home_games} home games instead of 2"
-        assert away_games == 2, f"{team_code} has {away_games} away games instead of 2"
+        assert home_games == 2, f"{team_code} has {home_games} home intra-conference games instead of 2"
+        assert away_games == 2, f"{team_code} has {away_games} away intra-conference games instead of 2"
     
     return assignments
 
@@ -352,8 +352,8 @@ def generate_inter_conference_assignments(inter_matchups):
     for team_code in assignments:
         home_games = sum(1 for loc in assignments[team_code].values() if loc == 'HOME')
         away_games = sum(1 for loc in assignments[team_code].values() if loc == 'AWAY')
-        assert home_games == 2, f"{team_code} has {home_games} home games instead of 2"
-        assert away_games == 2, f"{team_code} has {away_games} away games instead of 2"
+        assert home_games == 2, f"{team_code} has {home_games} home inter-conference matchup games instead of 2"
+        assert away_games == 2, f"{team_code} has {away_games} away inter-conference matchup games instead of 2"
     
     return assignments
 
