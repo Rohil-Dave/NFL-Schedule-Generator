@@ -254,6 +254,64 @@ def print_rankings_matchups(rankings_matchups, matchup_type):
         for conf1, div1, conf2, div2 in sorted(rankings_matchups):
             print(f"{conf1} {div1} will play same seed in {conf2} {div2}")
 
+def get_intra_ranking_based_opponents(team_conf, team_div, team_rank, standings, intra_rankings):
+    """
+    Get the specific intra-conference opponents for a team based on rankings.
+    
+    Args:
+        team_conf (str): Team's conference ('AFC' or 'NFC')
+        team_div (str): Team's division ('North', 'South', 'East', 'West')
+        team_rank (int): Team's rank in their division (1-4)
+        standings (dict): Current standings dictionary
+        intra_rankings (dict): Dictionary of intra-conference rankings matchups
+    
+    Returns:
+        list: Names of the two same-conference opponents based on rankings
+    """
+    # Get the two divisions this team plays against for rankings
+    opponent_divisions = intra_rankings[f"{team_conf} {team_div}"]
+    opponents = []
+    
+    # For each opponent division, find the team at our rank
+    for div in opponent_divisions:
+        # Get list of teams in that division sorted by standing
+        div_teams = standings[team_conf][div]
+        # Find team at our rank (subtract 1 because ranks are 1-based but lists are 0-based)
+        opponent = div_teams[team_rank - 1]
+        opponents.append(opponent['name'])
+    
+    return opponents
+
+def get_inter_ranking_based_opponent(team_conf, team_div, team_rank, standings, inter_rankings):
+    """
+    Get the specific inter-conference opponent for a team based on rankings.
+    
+    Args:
+        team_conf (str): Team's conference ('AFC' or 'NFC')
+        team_div (str): Team's division ('North', 'South', 'East', 'West')
+        team_rank (int): Team's rank in their division (1-4)
+        standings (dict): Current standings dictionary
+        inter_rankings (list): List of (conf1, div1, conf2, div2) tuples for inter-conference rankings
+    
+    Returns:
+        str: Name of the opposite-conference opponent based on rankings
+    """
+    # Find the division this team is paired with for inter-conference rankings
+    opp_conf = "NFC" if team_conf == "AFC" else "AFC"
+    
+    # Search through the rankings matchups to find our pairing
+    for conf1, div1, conf2, div2 in inter_rankings:
+        if conf1 == team_conf and div1 == team_div:
+            opp_div = div2
+            break
+        if conf2 == team_conf and div2 == team_div:
+            opp_div = div1
+            break
+    
+    # Get the team at the same rank in the paired division
+    opponent = standings[opp_conf][opp_div][team_rank - 1]
+    return opponent['name']
+
 def main():
     """
     Generate and display random NFL standings and all types of matchups.
