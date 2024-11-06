@@ -463,43 +463,58 @@ def generate_intra_rank_assignments(standings, intra_rankings):
             # Convert to list and sort for deterministic processing
             matchups = sorted(matchups)
             
-            # First pass: Assign games where one team desperately needs a home game
+            # First pass: Handle cases where a team MUST get a specific assignment
             for team1, team2 in matchups:
                 if not assignments[team1].get(team2):  # Only process unassigned matchups
+                    # If team1 has 1 away game but no home games, it MUST get a home game
                     if home_count[team1] == 0 and away_count[team1] == 1:
-                        # team1 needs a home game
                         assignments[team1][team2] = 'HOME'
                         assignments[team2][team1] = 'AWAY'
                         home_count[team1] += 1
                         away_count[team2] += 1
+                    # If team2 has 1 away game but no home games, it MUST get a home game
                     elif home_count[team2] == 0 and away_count[team2] == 1:
-                        # team2 needs a home game
                         assignments[team1][team2] = 'AWAY'
                         assignments[team2][team1] = 'HOME'
                         away_count[team1] += 1
                         home_count[team2] += 1
-            
+
             # Second pass: Assign remaining games balancing home/away counts
             for team1, team2 in matchups:
                 if not assignments[team1].get(team2):  # Only process unassigned matchups
-                    if home_count[team1] < 1 and away_count[team2] < 1: # THIS CREATS ALPHABETICAL BIAS FOR HOME WHEN BOTH ELIGIBLE
-                        # Give team1 a home game if possible
+                    # Randomly assign home/away unless a team already has their maximum games
+                    if home_count[team1] == 1 or away_count[team2] == 1:
+                        # If team1 already has a home game or team2 already has an away game,
+                        # team2 must get the home game
+                        assignments[team1][team2] = 'AWAY'
+                        assignments[team2][team1] = 'HOME'
+                        away_count[team1] += 1
+                        home_count[team2] += 1
+                    elif home_count[team2] == 1 or away_count[team1] == 1:
+                        # If team2 already has a home game or team1 already has an away game,
+                        # team1 must get the home game
                         assignments[team1][team2] = 'HOME'
                         assignments[team2][team1] = 'AWAY'
                         home_count[team1] += 1
                         away_count[team2] += 1
                     else:
-                        # Give team2 a home game
-                        assignments[team1][team2] = 'AWAY'
-                        assignments[team2][team1] = 'HOME'
-                        away_count[team1] += 1
-                        home_count[team2] += 1
-            
+                        # Both teams are eligible for either home or away, so randomly assign
+                        if random.random() < 0.5:  # 50% chance for each team to get home, random.random() returns random float between 0.0 and 1.0
+                            assignments[team1][team2] = 'HOME'
+                            assignments[team2][team1] = 'AWAY'
+                            home_count[team1] += 1
+                            away_count[team2] += 1
+                        else:
+                            assignments[team1][team2] = 'AWAY'
+                            assignments[team2][team1] = 'HOME'
+                            away_count[team1] += 1
+                            home_count[team2] += 1
+                        
             # Verify assignments for this rank
             for team, _ in rank_groups[rank]:
                 assert home_count[team] == 1, f"Team {team} has {home_count[team]} home games"
                 assert away_count[team] == 1, f"Team {team} has {away_count[team]} away games"
-    
+                
     # Run final verification
     verify_intra_rank_assignments(assignments)
     
