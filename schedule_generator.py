@@ -1,3 +1,38 @@
+"""
+NFL Schedule Generator Main Module
+
+This module serves as the main program for generating NFL team schedules.
+It implements the NFL's scheduling formula to create a complete 17-game schedule
+for any team, following the league's scheduling rules introduced in 2021.
+
+Schedule Composition (17 games total):
+    - 6 division games (3 home, 3 away)
+    - 4 games against another division in same conference
+    - 4 games against a division in opposite conference
+    - 2 intra-conference games based on prior year's standings
+    - 1 inter-conference game based on prior year's standings
+        (AFC hosts in odd years, NFC in even years)
+
+Features:
+    - Year validation (2021 or later due to 17-game schedule)
+    - Proper home/away game distribution
+    - Rankings-based matchup generation
+    - Balanced schedule generation adhering to NFL rules
+    - Detailed schedule display with home/away designations
+
+Main Function:
+    main(): Handles user interaction and schedule generation flow
+
+Dependencies:
+    nfl_teams.py: NFL teams data structure
+    schedule_setup.py: Initial setup and matchup generation functions
+
+Usage:
+    Run this module directly to generate schedules.
+    Users will be prompted for:
+    1. Year (2021 or later)
+    2. Team abbreviation (e.g., 'SF' for San Francisco 49ers)
+"""
 import random
 from nfl_teams import NFL_TEAMS
 from schedule_setup import (

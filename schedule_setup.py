@@ -1,3 +1,24 @@
+"""
+NFL Schedule Setup Module
+
+This module handles the initial setup required for NFL schedule generation,
+including creating random standings and generating division matchups according
+to NFL scheduling rules.
+
+The module implements core scheduling concepts:
+- Random standings generation for season simulation
+- Division matchups pairing (both intra and inter-conference)
+- Rankings-based matchup generation
+- Formatted display of standings and matchups
+
+Main Functions:
+    generate_random_standings(): Generates randomized division standings
+    generate_pairings_matchups(): Generates division vs division matchups
+    generate_rankings_matchups(): Deduces rankings-based games matchups
+
+Dependencies:
+    nfl_teams.py: Contains NFL teams data structure
+"""
 # Import required libraries
 import random
 from nfl_teams import NFL_TEAMS  # Import our NFL teams data structure

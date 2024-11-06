@@ -1,5 +1,36 @@
-# Dictionary containing all NFL teams organized by conference and division
-# Each team contains full name, abbreviation, conference, and division
+"""
+NFL Teams Data Module
+
+This module contains the NFL_TEAMS data structure that organizes all NFL teams
+by conference and division. The data structure is used throughout the schedule
+generator to access team information and maintain league organization.
+
+Data Structure:
+    NFL_TEAMS (dict): A nested dictionary organizing NFL teams by conference and division
+        Format:
+        {
+            conference (str): {
+                division (str): [
+                    {
+                        "name": str,          # Full team name
+                        "abbreviation": str,  # Team abbreviation code
+                        "conference": str,    # 'AFC' or 'NFC'
+                        "division": str       # 'North', 'South', 'East', or 'West'
+                    },
+                    ...
+                ]
+            }
+        }
+
+Example:
+    >>> NFL_TEAMS['AFC']['North'][0]
+    {
+        'name': 'Baltimore Ravens',
+        'abbreviation': 'BAL',
+        'conference': 'AFC',
+        'division': 'North'
+    }
+"""
 NFL_TEAMS = {
     "AFC": {
         "North": [
